@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Build + test. The libs submodule (ORESoftware/k8s-libs-and-shared-defs) is
+  # PRIVATE: add a read-only deploy key for it as the LIBS_DEPLOY_KEY secret,
+  # or this job cannot fetch the pg-defs crate and will fail at checkout.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+      - run: cargo test --locked
+
+  # Prove the declarative schema story on a fresh Postgres 17 (same proof shape
+  # as pg-defs CI): pg-defs schema.sql + the des-web overlay apply cleanly to an
+  # empty database, and the seed loads on top. dpm drift-checking runs locally /
+  # against RDS via scripts/dpm.sh (see readme — the upstream varchar IN-list
+  # deparse bug makes `dpm verify` advisory for now, matching pg-defs CI).
+  schema:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+      - name: apply pg-defs + overlay to a fresh database, then seed
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'create database des_web_ci'
+          cat libs/pg-defs/schema/schema.sql schema/des-web.sql \
+            | psql -h localhost -U postgres -d des_web_ci -v ON_ERROR_STOP=1 -q
+          psql -h localhost -U postgres -d des_web_ci -v ON_ERROR_STOP=1 -q -f schema/seed.sql
+      - name: assert seeded pages have data
+        env:
+          PGPASSWORD: postgres
+        run: |
+          q() { psql -h localhost -U postgres -d des_web_ci -Atc "$1"; }
+          test "$(q 'select count(*) >= 7 from des_web_sims')" = t
+          test "$(q 'select count(*) >= 8 from des_soccer_tournament_matches')" = t
+          test "$(q 'select count(*) >= 3 from des_fel_elevator_learning_runs')" = t
+          test "$(q 'select count(*) >= 1 from des_web_routing_solves')" = t

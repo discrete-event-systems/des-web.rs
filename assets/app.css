@@ -1,0 +1,167 @@
+/* des-web — shared look for the maud-rendered pages. Self-contained, no CDN. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f9;
+  --panel: #ffffff;
+  --ink: #16181d;
+  --dim: #67707e;
+  --line: #d9dde4;
+  --accent: #2456d6;
+  --accent-ink: #ffffff;
+  --ok: #1a7f37;
+  --bad: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101216;
+    --panel: #181b21;
+    --ink: #e8eaee;
+    --dim: #98a1ad;
+    --line: #2a2f38;
+    --accent: #6e9bff;
+    --accent-ink: #0d1117;
+    --ok: #4ade80;
+    --bad: #f87171;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-decoration: none;
+  color: var(--ink);
+}
+.brand-sub {
+  margin-left: 0.5rem;
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+nav { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+nav a {
+  text-decoration: none;
+  color: var(--dim);
+  font-size: 0.9rem;
+  padding: 0.1rem 0.2rem;
+  border-bottom: 2px solid transparent;
+}
+nav a:hover { color: var(--ink); }
+nav a.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+main { max-width: 1080px; margin: 0 auto; padding: 1.5rem; }
+footer {
+  max-width: 1080px;
+  margin: 2rem auto 0;
+  padding: 1rem 1.5rem 2rem;
+  color: var(--dim);
+  font-size: 0.78rem;
+  border-top: 1px solid var(--line);
+}
+
+h1 { font-size: 1.5rem; margin: 0.2rem 0 0.6rem; }
+h2 { font-size: 1.05rem; margin: 1.6rem 0 0.6rem; }
+.lede, .hero p { color: var(--dim); max-width: 62rem; }
+code {
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+.hero { padding: 0.5rem 0 0.8rem; }
+.chips { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.chip {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 0.75rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.chip-completed, .chip-active { color: var(--ok); border-color: var(--ok); }
+.chip-running, .chip-imported { color: var(--accent); border-color: var(--accent); }
+.chip-failed, .chip-aborted { color: var(--bad); border-color: var(--bad); }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.9rem;
+  margin: 0.8rem 0;
+}
+.card {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.card-head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; }
+.card h3 { margin: 0 0 0.3rem; font-size: 0.98rem; }
+.card p { margin: 0.25rem 0; font-size: 0.86rem; color: var(--dim); }
+.card .meta { font-size: 0.76rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 0.87rem;
+  font-variant-numeric: tabular-nums;
+}
+th, td { text-align: left; padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--line); }
+th { color: var(--dim); font-weight: 600; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: color-mix(in srgb, var(--line) 25%, transparent); }
+
+.note { color: var(--dim); font-size: 0.88rem; }
+.note-dim { opacity: 0.7; font-size: 0.78rem; }
+
+.auth-form { display: flex; gap: 0.8rem; align-items: end; margin: 1rem 0; flex-wrap: wrap; }
+.auth-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--dim); }
+.auth-form input {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  min-width: 18rem;
+}
+.auth-form button, button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.auth-result { font-size: 0.9rem; }
+.auth-result-ok { color: var(--ok); }
+.auth-result-err { color: var(--bad); }

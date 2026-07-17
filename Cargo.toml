@@ -1,0 +1,45 @@
+[package]
+name = "des-web"
+version = "0.1.0"
+edition = "2021"
+description = "MASH (maud + axum + supabase + sea-orm + htmx) web server for the discrete-event-systems org: serves the sim/game pages copied from ORESoftware/k8s-cluster (soccer, track3t, optimal routing, elevator, DES artifacts) backed by the shared pg-defs Postgres contract."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/discrete-event-systems/des-web.rs"
+
+[[bin]]
+name = "des-web"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+maud = { version = "0.27", features = ["axum"] }
+
+# The shared Postgres contract. SOURCE OF TRUTH is libs/pg-defs/schema/schema.sql
+# (git submodule of ORESoftware/k8s-libs-and-shared-defs); this generated SeaORM
+# adapter is read-only codegen on top of it. Never infer migrations from it —
+# migrations are declarative via dpm (see scripts/dpm.sh).
+dd-pg-defs-sea-orm = { path = "libs/pg-defs/generated/rust/sea-orm" }
+sea-orm = { version = "1.1", default-features = false, features = [
+  "sqlx-postgres",
+  "runtime-tokio-rustls",
+  "macros",
+  "with-uuid",
+  "with-chrono",
+  "with-json",
+] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Supabase GoTrue (magic-link login) and the optional des-rs solver proxy
+# ("stream" lets the planner stream endpoint pass through without buffering).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+strip = true
