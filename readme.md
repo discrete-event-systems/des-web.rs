@@ -5,6 +5,11 @@ from [ORESoftware/k8s-cluster](https://github.com/ORESoftware/k8s-cluster)
 (**copied, not ripped out** — the originals keep running in-cluster), with the
 data behind them read from the shared Postgres contract.
 
+For the public, dependency-free showcase, visit the Astro/GitHub Pages site at
+[discrete-event-systems.github.io](https://discrete-event-systems.github.io/).
+This repository remains the dynamic application server; the Pages site keeps
+its simulation and game galleries static and browser-isolated.
+
 **MASH** — the stack:
 
 | letter | piece | here |
@@ -123,6 +128,7 @@ scripts/dpm.sh     declarative migration entrypoint
 libs/              pg-defs submodule (schema contract + generated SeaORM crate)
 ```
 
-Docker: `docker build .` (initialize the `libs` submodule first). CI needs a
-read-only deploy key for the private libs submodule as the `LIBS_DEPLOY_KEY`
-secret.
+Docker: `docker build .` (initialize the `libs` submodule first). CI uses the
+`LIBS_DEPLOY_KEY` Actions secret, backed by a read-only deploy key scoped only
+to the private pg-defs repository. Forked pull requests cannot receive that
+secret and therefore cannot run the submodule-dependent jobs.

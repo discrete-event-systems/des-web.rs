@@ -10,10 +10,8 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use dd_pg_defs_sea_orm::{
     des_fel_elevator_dispatch_decisions as elevator_decisions,
-    des_fel_elevator_learning_runs as elevator_runs,
-    des_soccer_learning_runs as soccer_runs,
-    des_soccer_tournament_matches as soccer_matches,
-    des_soccer_tournaments as soccer_tournaments,
+    des_fel_elevator_learning_runs as elevator_runs, des_soccer_learning_runs as soccer_runs,
+    des_soccer_tournament_matches as soccer_matches, des_soccer_tournaments as soccer_tournaments,
 };
 
 use crate::artifacts;
@@ -82,28 +80,32 @@ fn micros_secs(m: i64) -> String {
 // ---------------------------------------------------------------------------
 
 pub async fn home() -> Markup {
-    layout("Sims & games", "/", html! {
-        section class="hero" {
-            h1 { "Discrete-event sims & games" }
-            p {
-                "The sim/game pages from " code { "ORESoftware/k8s-cluster" } " — soccer, track3t, "
-                "optimal routing, elevators — copied onto one standalone MASH server "
-                "(maud + axum + supabase + sea-orm + htmx), with the data behind them served "
-                "from the shared " code { "pg-defs" } " Postgres contract."
-            }
-            div class="chips" {
-                span id="db-status" hx-get="/partials/db-status" hx-trigger="load, every 30s" {
-                    span class="chip" { "db: checking…" }
+    layout(
+        "Sims & games",
+        "/",
+        html! {
+            section class="hero" {
+                h1 { "Discrete-event sims & games" }
+                p {
+                    "The sim/game pages from " code { "ORESoftware/k8s-cluster" } " — soccer, track3t, "
+                    "optimal routing, elevators — copied onto one standalone MASH server "
+                    "(maud + axum + supabase + sea-orm + htmx), with the data behind them served "
+                    "from the shared " code { "pg-defs" } " Postgres contract."
+                }
+                div class="chips" {
+                    span id="db-status" hx-get="/partials/db-status" hx-trigger="load, every 30s" {
+                        span class="chip" { "db: checking…" }
+                    }
                 }
             }
-        }
-        section {
-            h2 { "Catalog" }
-            div id="catalog" hx-get="/partials/sims" hx-trigger="load" {
-                p class="note" { "Loading catalog…" }
+            section {
+                h2 { "Catalog" }
+                div id="catalog" hx-get="/partials/sims" hx-trigger="load" {
+                    p class="note" { "Loading catalog…" }
+                }
             }
-        }
-    })
+        },
+    )
 }
 
 pub async fn partial_db_status(State(app): State<AppState>) -> Markup {
@@ -120,13 +122,48 @@ pub async fn partial_db_status(State(app): State<AppState>) -> Markup {
 /// Static fallback mirroring schema/seed.sql, so the catalog renders even with
 /// no database at all.
 const FALLBACK_SIMS: &[(&str, &str, &str, &str)] = &[
-    ("Soccer rotation planner", "game", "/soccer/planner", "des-rs + soccer-sim-game-engine.rs"),
-    ("Soccer learning & tournaments", "dashboard", "/soccer", "pg-defs (des_soccer_*)"),
-    ("Optimal routing — live VRP/TSP", "solver", "/routing", "routing-server-rs"),
-    ("Track3t factory floor", "artifact", "/track3t", "discrete-event-system out/"),
-    ("Elevator dispatch learning", "dashboard", "/elevator", "pg-defs (des_fel_elevator_*)"),
-    ("Elevator high-rise player", "artifact", "/elevator/player", "discrete-event-system out/"),
-    ("Soccer MIP/LP solver traces", "artifact", "/artifacts", "discrete-event-system out/"),
+    (
+        "Soccer rotation planner",
+        "game",
+        "/soccer/planner",
+        "des-rs + soccer-sim-game-engine.rs",
+    ),
+    (
+        "Soccer learning & tournaments",
+        "dashboard",
+        "/soccer",
+        "pg-defs (des_soccer_*)",
+    ),
+    (
+        "Optimal routing — live VRP/TSP",
+        "solver",
+        "/routing",
+        "routing-server-rs",
+    ),
+    (
+        "Track3t factory floor",
+        "artifact",
+        "/track3t",
+        "discrete-event-system out/",
+    ),
+    (
+        "Elevator dispatch learning",
+        "dashboard",
+        "/elevator",
+        "pg-defs (des_fel_elevator_*)",
+    ),
+    (
+        "Elevator high-rise player",
+        "artifact",
+        "/elevator/player",
+        "discrete-event-system out/",
+    ),
+    (
+        "Soccer MIP/LP solver traces",
+        "artifact",
+        "/artifacts",
+        "discrete-event-system out/",
+    ),
 ];
 
 pub async fn partial_sims(State(app): State<AppState>) -> Markup {
@@ -193,31 +230,37 @@ fn fallback_cards() -> Markup {
 // ---------------------------------------------------------------------------
 
 pub async fn soccer_page() -> Markup {
-    layout("Soccer", "/soccer", html! {
-        h1 { "Soccer — learning & tournaments" }
-        p class="lede" {
-            "Data straight from the shared " code { "pg-defs" } " contract tables the akrion "
-            "soccer stack writes (" code { "des_soccer_*" } "), read with SeaORM. "
-            "Play the interactive " a href="/soccer/planner" { "rotation planner" } ", or watch the "
-            a href="/artifacts/soccer-IP-MIP-feasible-solver" { "MIP solver trace" } "."
-        }
-        section {
-            h2 { "Tournaments" }
-            div hx-get="/partials/soccer/tournaments" hx-trigger="load" { p class="note" { "Loading…" } }
-        }
-        section {
-            h2 { "Knockout matches" }
-            div hx-get="/partials/soccer/matches" hx-trigger="load" { p class="note" { "Loading…" } }
-        }
-        section {
-            h2 { "Recent learning runs" }
-            div hx-get="/partials/soccer/runs" hx-trigger="load, every 20s" { p class="note" { "Loading…" } }
-        }
-    })
+    layout(
+        "Soccer",
+        "/soccer",
+        html! {
+            h1 { "Soccer — learning & tournaments" }
+            p class="lede" {
+                "Data straight from the shared " code { "pg-defs" } " contract tables the akrion "
+                "soccer stack writes (" code { "des_soccer_*" } "), read with SeaORM. "
+                "Play the interactive " a href="/soccer/planner" { "rotation planner" } ", or watch the "
+                a href="/artifacts/soccer-IP-MIP-feasible-solver" { "MIP solver trace" } "."
+            }
+            section {
+                h2 { "Tournaments" }
+                div hx-get="/partials/soccer/tournaments" hx-trigger="load" { p class="note" { "Loading…" } }
+            }
+            section {
+                h2 { "Knockout matches" }
+                div hx-get="/partials/soccer/matches" hx-trigger="load" { p class="note" { "Loading…" } }
+            }
+            section {
+                h2 { "Recent learning runs" }
+                div hx-get="/partials/soccer/runs" hx-trigger="load, every 20s" { p class="note" { "Loading…" } }
+            }
+        },
+    )
 }
 
 pub async fn partial_soccer_tournaments(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     match soccer_tournaments::Entity::find()
         .order_by_desc(soccer_tournaments::Column::Id)
         .limit(12)
@@ -260,7 +303,9 @@ pub async fn partial_soccer_tournaments(State(app): State<AppState>) -> Markup {
 }
 
 pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     // Note: the generated entity has no tournament_id field (the pg-defs
     // codegen skips this FK column), so matches are listed newest-first only.
     match soccer_matches::Entity::find()
@@ -300,7 +345,9 @@ pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
 }
 
 pub async fn partial_soccer_runs(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     match soccer_runs::Entity::find()
         .order_by_desc(soccer_runs::Column::CreatedAt)
         .limit(12)
@@ -340,26 +387,32 @@ pub async fn partial_soccer_runs(State(app): State<AppState>) -> Markup {
 // ---------------------------------------------------------------------------
 
 pub async fn elevator_page() -> Markup {
-    layout("Elevator", "/elevator", html! {
-        h1 { "Elevator — FEL dispatch learning" }
-        p class="lede" {
-            "Future-event-list elevator runs comparing LOOK, MDP-table and POMDP-belief "
-            "dispatch, from the shared " code { "des_fel_elevator_*" } " pg-defs tables. "
-            "Watch the animated " a href="/elevator/player" { "high-rise playback" } "."
-        }
-        section {
-            h2 { "Learning runs" }
-            div hx-get="/partials/elevator/runs" hx-trigger="load" { p class="note" { "Loading…" } }
-        }
-        section {
-            h2 { "Sample dispatch decisions" }
-            div hx-get="/partials/elevator/decisions" hx-trigger="load" { p class="note" { "Loading…" } }
-        }
-    })
+    layout(
+        "Elevator",
+        "/elevator",
+        html! {
+            h1 { "Elevator — FEL dispatch learning" }
+            p class="lede" {
+                "Future-event-list elevator runs comparing LOOK, MDP-table and POMDP-belief "
+                "dispatch, from the shared " code { "des_fel_elevator_*" } " pg-defs tables. "
+                "Watch the animated " a href="/elevator/player" { "high-rise playback" } "."
+            }
+            section {
+                h2 { "Learning runs" }
+                div hx-get="/partials/elevator/runs" hx-trigger="load" { p class="note" { "Loading…" } }
+            }
+            section {
+                h2 { "Sample dispatch decisions" }
+                div hx-get="/partials/elevator/decisions" hx-trigger="load" { p class="note" { "Loading…" } }
+            }
+        },
+    )
 }
 
 pub async fn partial_elevator_runs(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     match elevator_runs::Entity::find()
         .order_by_desc(elevator_runs::Column::CreatedAt)
         .limit(12)
@@ -395,7 +448,9 @@ pub async fn partial_elevator_runs(State(app): State<AppState>) -> Markup {
 }
 
 pub async fn partial_elevator_decisions(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     match elevator_decisions::Entity::find()
         .order_by_asc(elevator_decisions::Column::SimTimeMicros)
         .limit(20)
@@ -434,7 +489,9 @@ pub async fn routing_page() -> Html<&'static str> {
 }
 
 pub async fn partial_routing_solves(State(app): State<AppState>) -> Markup {
-    let Some(db) = &app.db else { return db_offline() };
+    let Some(db) = &app.db else {
+        return db_offline();
+    };
     match routing_solves::Entity::find()
         .order_by_desc(routing_solves::Column::CreatedAt)
         .limit(10)
@@ -478,57 +535,69 @@ pub async fn partial_routing_solves(State(app): State<AppState>) -> Markup {
 // ---------------------------------------------------------------------------
 
 pub async fn artifacts_index() -> Markup {
-    layout("Artifacts", "/artifacts", html! {
-        h1 { "Rendered DES artifacts" }
-        p class="lede" {
-            "Self-contained HTML animations rendered by the DES engine, vendored from "
-            code { "discrete-event-system/out/" } " and served gzip-compressed as stored."
-        }
-        div class="cards" {
-            @for a in artifacts::ARTIFACTS {
-                a class="card" href={ "/artifacts/" (a.slug) } {
-                    div class="card-head" {
-                        h3 { (a.title) }
-                        span class="chip chip-kind-artifact" { "artifact" }
+    layout(
+        "Artifacts",
+        "/artifacts",
+        html! {
+            h1 { "Rendered DES artifacts" }
+            p class="lede" {
+                "Self-contained HTML animations rendered by the DES engine, vendored from "
+                code { "discrete-event-system/out/" } " and served gzip-compressed as stored."
+            }
+            div class="cards" {
+                @for a in artifacts::ARTIFACTS {
+                    a class="card" href={ "/artifacts/" (a.slug) } {
+                        div class="card-head" {
+                            h3 { (a.title) }
+                            span class="chip chip-kind-artifact" { "artifact" }
+                        }
+                        p { (a.blurb) }
+                        p class="meta" { (a.source) " · " (a.plain_size) }
                     }
-                    p { (a.blurb) }
-                    p class="meta" { (a.source) " · " (a.plain_size) }
                 }
             }
-        }
-    })
+        },
+    )
 }
 
 pub async fn login_page(State(app): State<AppState>) -> Markup {
     let configured = app.cfg.supabase().is_some();
-    layout("Login", "/login", html! {
-        h1 { "Login" }
-        p class="lede" { "Passwordless magic-link sign-in via Supabase GoTrue (the S in MASH)." }
-        @if configured {
-            form hx-post="/auth/magic-link" hx-target="#auth-result" hx-swap="innerHTML" class="auth-form" {
-                label { "Email"
-                    input type="email" name="email" placeholder="you@example.com" required;
+    layout(
+        "Login",
+        "/login",
+        html! {
+            h1 { "Login" }
+            p class="lede" { "Passwordless magic-link sign-in via Supabase GoTrue (the S in MASH)." }
+            @if configured {
+                form hx-post="/auth/magic-link" hx-target="#auth-result" hx-swap="innerHTML" class="auth-form" {
+                    label { "Email"
+                        input type="email" name="email" placeholder="you@example.com" required;
+                    }
+                    button type="submit" { "Send magic link" }
                 }
-                button type="submit" { "Send magic link" }
+            } @else {
+                p class="note" {
+                    "Supabase is not configured. Set " code { "SUPABASE_URL" } " and "
+                    code { "SUPABASE_ANON_KEY" } " to enable magic-link login. "
+                    "(Supabase can also be the app's Postgres: point " code { "DATABASE_URL" }
+                    " at the project's connection string.)"
+                }
             }
-        } @else {
-            p class="note" {
-                "Supabase is not configured. Set " code { "SUPABASE_URL" } " and "
-                code { "SUPABASE_ANON_KEY" } " to enable magic-link login. "
-                "(Supabase can also be the app's Postgres: point " code { "DATABASE_URL" }
-                " at the project's connection string.)"
-            }
-        }
-        div id="auth-result" {}
-    })
+            div id="auth-result" {}
+        },
+    )
 }
 
 pub async fn not_found() -> (axum::http::StatusCode, Markup) {
     (
         axum::http::StatusCode::NOT_FOUND,
-        layout("Not found", "", html! {
-            h1 { "404" }
-            p class="lede" { "No such page. " a href="/" { "Back to the catalog." } }
-        }),
+        layout(
+            "Not found",
+            "",
+            html! {
+                h1 { "404" }
+                p class="lede" { "No such page. " a href="/" { "Back to the catalog." } }
+            },
+        ),
     )
 }

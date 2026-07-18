@@ -62,7 +62,10 @@ async fn app_css() -> impl IntoResponse {
 async fn htmx_js() -> impl IntoResponse {
     (
         [
-            (header::CONTENT_TYPE, "application/javascript; charset=utf-8"),
+            (
+                header::CONTENT_TYPE,
+                "application/javascript; charset=utf-8",
+            ),
             (header::CACHE_CONTROL, "public, max-age=86400"),
         ],
         include_str!("../assets/htmx.min.js"),
@@ -89,8 +92,14 @@ fn router(state: AppState) -> Router {
         .route("/partials/sims", get(views::partial_sims))
         // soccer: data dashboard (pg-defs des_soccer_*) + copied planner page
         .route("/soccer", get(views::soccer_page))
-        .route("/partials/soccer/tournaments", get(views::partial_soccer_tournaments))
-        .route("/partials/soccer/matches", get(views::partial_soccer_matches))
+        .route(
+            "/partials/soccer/tournaments",
+            get(views::partial_soccer_tournaments),
+        )
+        .route(
+            "/partials/soccer/matches",
+            get(views::partial_soccer_matches),
+        )
         .route("/partials/soccer/runs", get(views::partial_soccer_runs))
         .route("/soccer/planner", get(planner::planner_page))
         .route("/soccer/planner/solve", post(planner::proxy_solve))
@@ -99,12 +108,18 @@ fn router(state: AppState) -> Router {
         .route("/elevator", get(views::elevator_page))
         .route("/elevator/player", get(elevator_player_page))
         .route("/partials/elevator/runs", get(views::partial_elevator_runs))
-        .route("/partials/elevator/decisions", get(views::partial_elevator_decisions))
+        .route(
+            "/partials/elevator/decisions",
+            get(views::partial_elevator_decisions),
+        )
         // routing: copied dashboard + in-process solver API
         .route("/routing", get(views::routing_page))
         .route("/api/solve", post(routing::post_solve))
         .route("/api/solve/{id}", get(routing::get_solve))
-        .route("/partials/routing/solves", get(views::partial_routing_solves))
+        .route(
+            "/partials/routing/solves",
+            get(views::partial_routing_solves),
+        )
         // vendored DES artifacts
         .route("/track3t", get(track3t_page))
         .route("/artifacts", get(views::artifacts_index))
