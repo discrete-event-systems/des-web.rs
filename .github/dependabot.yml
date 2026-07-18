@@ -1,14 +1,7 @@
 version: 2
+# Cargo updates are handled with the initialized private pg-defs submodule;
+# Dependabot cannot authenticate that path dependency safely.
 updates:
-  - package-ecosystem: cargo
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: America/Lima
-    open-pull-requests-limit: 5
-    labels: [dependencies]
   - package-ecosystem: github-actions
     directory: /
     schedule:
