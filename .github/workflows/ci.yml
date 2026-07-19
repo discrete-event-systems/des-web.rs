@@ -84,10 +84,13 @@ jobs:
         run: |
           curl -fsSL -o /tmp/dpm.tar.gz \
             https://github.com/declarative-migrations/declarative-postgres-migrate.rs/releases/download/v0.3.2/dpm-v0.3.2-x86_64-unknown-linux-gnu.tar.gz
-          # Extract only the binary, ignoring the archive's root-dir metadata
-          # entry (its perms/mtime aren't restorable, which trips `bash -e`).
-          tar -xzf /tmp/dpm.tar.gz -C /tmp --no-same-owner --no-same-permissions -m dpm
-          sudo install /tmp/dpm /usr/local/bin/dpm
+          # Extract into a fresh dir with tolerant flags: the archive's root-dir
+          # entry has perms/mtime tar can't restore, which trips `bash -e`.
+          # --no-same-permissions -m --no-same-owner skips restoring that
+          # metadata; a fresh -C dir avoids clobbering anything in /tmp.
+          mkdir -p /tmp/dpmx
+          tar -xzf /tmp/dpm.tar.gz -C /tmp/dpmx --no-same-owner --no-same-permissions -m
+          sudo install /tmp/dpmx/dpm /usr/local/bin/dpm
           dpm version
       - name: dpm verify — prove zero drift against the desired state (enforcing)
         env:
