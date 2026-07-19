@@ -5,6 +5,7 @@ edition = "2021"
 description = "MASH (maud + axum + supabase + sea-orm + htmx) web server for the discrete-event-systems org: serves the sim/game pages copied from ORESoftware/k8s-cluster (soccer, track3t, optimal routing, elevator, DES artifacts) backed by the shared pg-defs Postgres contract."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/discrete-event-systems/des-web.rs"
+homepage = "https://discrete-event-systems.github.io"
 
 [[bin]]
 name = "des-web"

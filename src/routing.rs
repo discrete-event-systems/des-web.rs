@@ -140,7 +140,9 @@ fn construct(stops: &[Stop], vehicles: usize, rng: &mut Rng) -> Vec<Vec<usize>> 
             let s = stops[i];
             ((s.y - depot.y).atan2(s.x - depot.x) + rotation).rem_euclid(std::f64::consts::TAU)
         };
-        ang(a).partial_cmp(&ang(b)).unwrap_or(std::cmp::Ordering::Equal)
+        ang(a)
+            .partial_cmp(&ang(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     // A few random swaps so restarts explore different partitions.
     for _ in 0..(order.len() / 6).max(1) {
@@ -174,7 +176,7 @@ fn construct(stops: &[Stop], vehicles: usize, rng: &mut Rng) -> Vec<Vec<usize>> 
 }
 
 /// Classic 2-opt on one closed route until no improvement (bounded passes).
-fn two_opt(route: &mut Vec<usize>, stops: &[Stop]) {
+fn two_opt(route: &mut [usize], stops: &[Stop]) {
     let n = route.len();
     if n < 4 {
         return;
@@ -233,7 +235,12 @@ async fn run_solve(solves: SolveMap, db: Option<DatabaseConnection>, id: Uuid) {
     let (stops, vehicles, restarts, seed) = {
         let map = solves.lock().await;
         let Some(s) = map.get(&id) else { return };
-        (s.stops.clone(), s.vehicles as usize, s.restarts_total, s.seed)
+        (
+            s.stops.clone(),
+            s.vehicles as usize,
+            s.restarts_total,
+            s.seed,
+        )
     };
 
     for r in 0..restarts {
@@ -270,10 +277,7 @@ async fn run_solve(solves: SolveMap, db: Option<DatabaseConnection>, id: Uuid) {
     }
 }
 
-pub async fn post_solve(
-    State(app): State<AppState>,
-    Json(req): Json<SolveRequest>,
-) -> Response {
+pub async fn post_solve(State(app): State<AppState>, Json(req): Json<SolveRequest>) -> Response {
     let count = req.generate.count.clamp(3, 1000) as usize;
     let vehicles = req.generate.vehicles.clamp(1, 64).min(count as u32 - 1);
     let restarts = req.restarts.clamp(1, 512);

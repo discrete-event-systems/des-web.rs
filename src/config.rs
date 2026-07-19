@@ -22,7 +22,10 @@ pub struct Config {
 }
 
 fn env_opt(name: &str) -> Option<String> {
-    env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 impl Config {
@@ -44,7 +47,10 @@ impl Config {
     }
 
     pub fn supabase(&self) -> Option<(&str, &str)> {
-        match (self.supabase_url.as_deref(), self.supabase_anon_key.as_deref()) {
+        match (
+            self.supabase_url.as_deref(),
+            self.supabase_anon_key.as_deref(),
+        ) {
             (Some(url), Some(key)) => Some((url, key)),
             _ => None,
         }

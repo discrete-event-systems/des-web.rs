@@ -30,10 +30,7 @@ pub async fn status(State(app): State<AppState>) -> Json<serde_json::Value> {
 }
 
 /// POST /auth/magic-link (htmx form target) → result fragment.
-pub async fn magic_link(
-    State(app): State<AppState>,
-    Form(form): Form<MagicLinkForm>,
-) -> Markup {
+pub async fn magic_link(State(app): State<AppState>, Form(form): Form<MagicLinkForm>) -> Markup {
     let email = form.email.trim().to_string();
     if !email.contains('@') || email.len() > 320 {
         return fragment("err", "That doesn't look like an email address.");

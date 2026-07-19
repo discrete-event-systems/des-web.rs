@@ -2,21 +2,39 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   # Build + test. The libs submodule (ORESoftware/k8s-libs-and-shared-defs) is
   # PRIVATE: add a read-only deploy key for it as the LIBS_DEPLOY_KEY secret,
   # or this job cannot fetch the pg-defs crate and will fail at checkout.
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo build --locked
       - run: cargo test --locked
 
@@ -26,10 +44,11 @@ jobs:
   # varchar IN-list convergence bug) VERIFIES the applied DB converges onto the
   # combined desired state with zero drift — enforcing, matching upstream.
   schema:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -39,10 +58,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+          persist-credentials: false
       - name: apply pg-defs + overlay to a fresh database, then seed
         env:
           PGPASSWORD: postgres
@@ -64,7 +84,9 @@ jobs:
         run: |
           curl -fsSL -o /tmp/dpm.tar.gz \
             https://github.com/declarative-migrations/declarative-postgres-migrate.rs/releases/download/v0.3.2/dpm-v0.3.2-x86_64-unknown-linux-gnu.tar.gz
-          tar -xzf /tmp/dpm.tar.gz -C /tmp
+          # Extract only the binary, ignoring the archive's root-dir metadata
+          # entry (its perms/mtime aren't restorable, which trips `bash -e`).
+          tar -xzf /tmp/dpm.tar.gz -C /tmp --no-same-owner --no-same-permissions -m dpm
           sudo install /tmp/dpm /usr/local/bin/dpm
           dpm version
       - name: dpm verify — prove zero drift against the desired state (enforcing)
