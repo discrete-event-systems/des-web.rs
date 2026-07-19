@@ -306,10 +306,12 @@ pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
     let Some(db) = &app.db else {
         return db_offline();
     };
-    // Note: the generated entity has no tournament_id field (the pg-defs
-    // codegen skips this FK column), so matches are listed newest-first only.
+    // Grouped by tournament (newest first), then in bracket order. The
+    // tournament_id FK column is available again since the pg-defs wrapped-FK
+    // parser fix (k8s-libs-and-shared-defs ee57b76).
     match soccer_matches::Entity::find()
-        .order_by_desc(soccer_matches::Column::Id)
+        .order_by_desc(soccer_matches::Column::TournamentId)
+        .order_by_asc(soccer_matches::Column::MatchIndex)
         .limit(16)
         .all(db)
         .await
@@ -319,12 +321,13 @@ pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
         Ok(rows) => html! {
             table {
                 thead { tr {
-                    th { "#" } th { "stage" } th { "fixture" }
+                    th { "tournament" } th { "#" } th { "stage" } th { "fixture" }
                     th { "score" } th { "training steps (h/a)" } th { "recorded" }
                 } }
                 tbody {
                     @for m in &rows {
                         tr {
+                            td { (m.tournament_id) }
                             td { (m.match_index) }
                             td { (m.stage) }
                             td { "team " (m.home_team_id) " vs team " (m.away_team_id) }
