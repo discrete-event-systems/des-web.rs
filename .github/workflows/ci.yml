@@ -40,9 +40,9 @@ jobs:
 
   # Prove the declarative schema story on a fresh Postgres 17 (same proof shape
   # as pg-defs CI): pg-defs schema.sql + the des-web overlay apply cleanly to an
-  # empty database, and the seed loads on top. dpm drift-checking runs locally /
-  # against RDS via scripts/dpm.sh (see readme — the upstream varchar IN-list
-  # deparse bug makes `dpm verify` advisory for now, matching pg-defs CI).
+  # empty database, the seed loads on top, and dpm (≥0.3.2, which fixes the
+  # varchar IN-list convergence bug) VERIFIES the applied DB converges onto the
+  # combined desired state with zero drift — enforcing, matching upstream.
   schema:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -80,3 +80,21 @@ jobs:
           test "$(q 'select count(*) >= 8 from des_soccer_tournament_matches')" = t
           test "$(q 'select count(*) >= 3 from des_fel_elevator_learning_runs')" = t
           test "$(q 'select count(*) >= 1 from des_web_routing_solves')" = t
+      - name: install dpm 0.3.2
+        run: |
+          curl -fsSL -o /tmp/dpm.tar.gz \
+            https://github.com/declarative-migrations/declarative-postgres-migrate.rs/releases/download/v0.3.2/dpm-v0.3.2-x86_64-unknown-linux-gnu.tar.gz
+          # Extract into a fresh dir with tolerant flags: the archive's root-dir
+          # entry has perms/mtime tar can't restore, which trips `bash -e`.
+          # --no-same-permissions -m --no-same-owner skips restoring that
+          # metadata; a fresh -C dir avoids clobbering anything in /tmp.
+          mkdir -p /tmp/dpmx
+          tar -xzf /tmp/dpm.tar.gz -C /tmp/dpmx --no-same-owner --no-same-permissions -m
+          sudo install /tmp/dpmx/dpm /usr/local/bin/dpm
+          dpm version
+      - name: dpm verify — prove zero drift against the desired state (enforcing)
+        env:
+          PGPASSWORD: postgres
+          SHADOW_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          TARGET_DATABASE_URL: postgres://postgres:postgres@localhost:5432/des_web_ci
+        run: scripts/dpm.sh verify
