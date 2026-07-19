@@ -22,9 +22,9 @@ jobs:
 
   # Prove the declarative schema story on a fresh Postgres 17 (same proof shape
   # as pg-defs CI): pg-defs schema.sql + the des-web overlay apply cleanly to an
-  # empty database, and the seed loads on top. dpm drift-checking runs locally /
-  # against RDS via scripts/dpm.sh (see readme — the upstream varchar IN-list
-  # deparse bug makes `dpm verify` advisory for now, matching pg-defs CI).
+  # empty database, the seed loads on top, and dpm (≥0.3.2, which fixes the
+  # varchar IN-list convergence bug) VERIFIES the applied DB converges onto the
+  # combined desired state with zero drift — enforcing, matching upstream.
   schema:
     runs-on: ubuntu-latest
     services:
