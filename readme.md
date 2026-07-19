@@ -76,15 +76,16 @@ Target resolution matches the pg-defs tooling: `TARGET_DATABASE_URL` →
 commented-out and refused at apply time without dpm's two explicit consent
 flags. Never apply automatically; a human reviews the SQL first.
 
+Requires **dpm ≥ 0.3.2**: earlier builds (≤0.3.1) hit a deparse bug where
+varchar IN-list CHECK constraints re-emit as `(ARRAY[...])::text[]` and never
+converge, so a drift check would report hundreds of phantom drop/re-add
+changes against the pg-defs tables. v0.3.2 fixes convergence, and this repo's
+schema `dpm verify`s clean on it. `dpm version` must print `0.3.2` or newer.
+
 Supabase notes: point dpm and the app at the **session pooler or direct
 connection** (port 5432), not the transaction pooler — DDL and prepared
 statements need real sessions — and keep `SHADOW_DATABASE_URL` on a local
 server (Supabase won't let dpm create/drop scratch databases).
-
-Known upstream dpm limitation (same as pg-defs CI): varchar IN-list CHECK
-constraints deparse in a form that never converges to string equality, so
-drift checks are advisory for the pg-defs tables. The des-web overlay uses
-`text` columns for its IN-list CHECKs and is unaffected.
 
 ## Quickstart (local)
 
