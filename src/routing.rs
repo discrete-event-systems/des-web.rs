@@ -337,3 +337,115 @@ pub async fn get_solve(State(app): State<AppState>, Path(id): Path<Uuid>) -> Res
     )
         .into_response()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    /// The invariant every solve must hold: each route starts at the depot, and
+    /// every non-depot stop is visited exactly once across all routes.
+    fn assert_valid_partition(stops: &[Stop], routes: &[Vec<usize>]) {
+        let mut seen: Vec<usize> = Vec::new();
+        for route in routes {
+            assert_eq!(
+                route.first(),
+                Some(&0),
+                "each route must start at the depot"
+            );
+            seen.extend(route.iter().copied().filter(|&i| i != 0));
+        }
+        let unique: BTreeSet<usize> = seen.iter().copied().collect();
+        assert_eq!(seen.len(), unique.len(), "no stop visited twice");
+        let expected: BTreeSet<usize> = (1..stops.len()).collect();
+        assert_eq!(
+            unique, expected,
+            "every non-depot stop visited exactly once"
+        );
+    }
+
+    #[test]
+    fn splitmix64_is_deterministic_per_seed() {
+        let mut a = Rng::new(42);
+        let mut b = Rng::new(42);
+        for _ in 0..1000 {
+            assert_eq!(a.next_u64(), b.next_u64());
+        }
+    }
+
+    #[test]
+    fn generate_stops_places_depot_and_is_seed_stable() {
+        let a = generate_stops(50, 7);
+        let b = generate_stops(50, 7);
+        assert_eq!(a.len(), 50);
+        assert_eq!(a[0].x, 50.0, "stop 0 is the depot at the map centre");
+        assert_eq!(a[0].y, 50.0);
+        assert!(a.iter().zip(&b).all(|(p, q)| p.x == q.x && p.y == q.y));
+        assert!(a[1..]
+            .iter()
+            .all(|s| (2.0..=98.0).contains(&s.x) && (2.0..=98.0).contains(&s.y)));
+    }
+
+    #[test]
+    fn construct_then_two_opt_yields_a_valid_partition() {
+        for &(n, vehicles) in &[(3usize, 1usize), (4, 3), (60, 3), (100, 5), (250, 8)] {
+            let stops = generate_stops(n, 11);
+            let mut rng = Rng::new(99);
+            let mut routes = construct(&stops, vehicles, &mut rng);
+            for route in &mut routes {
+                two_opt(route, &stops);
+            }
+            assert_eq!(routes.len(), vehicles, "one route per vehicle");
+            assert_valid_partition(&stops, &routes);
+        }
+    }
+
+    #[test]
+    fn two_opt_never_lengthens_a_route() {
+        let stops = generate_stops(40, 3);
+        let mut rng = Rng::new(5);
+        let mut routes = construct(&stops, 2, &mut rng);
+        for route in &mut routes {
+            let before = route_len(route, &stops);
+            two_opt(route, &stops);
+            let after = route_len(route, &stops);
+            assert!(
+                after <= before + 1e-9,
+                "2-opt must not lengthen: {before} -> {after}"
+            );
+        }
+    }
+
+    #[test]
+    fn full_multistart_is_deterministic_and_improves() {
+        // Mirror run_solve's per-restart loop without the async/DB parts.
+        let solve = |seed: u64, restarts: u32| {
+            let stops = generate_stops(80, seed);
+            let mut best = f64::INFINITY;
+            let mut best_routes = Vec::new();
+            let mut improvements = 0u32;
+            for r in 0..restarts {
+                let mut rng = Rng::new(seed.wrapping_add(r as u64).wrapping_mul(0x100000001B3));
+                let mut routes = construct(&stops, 4, &mut rng);
+                for route in &mut routes {
+                    two_opt(route, &stops);
+                }
+                let cand = total_len(&routes, &stops);
+                if cand < best {
+                    best = cand;
+                    best_routes = routes;
+                    improvements += 1;
+                }
+            }
+            (stops, best, best_routes, improvements)
+        };
+        let (stops, best1, routes1, imp) = solve(7, 30);
+        let (_, best2, _, _) = solve(7, 30);
+        assert_eq!(best1, best2, "same seed => identical best distance");
+        assert!(imp >= 1, "multistart should improve at least once");
+        assert_valid_partition(&stops, &routes1);
+        // More restarts can only help (best is a running minimum over the same seed prefix).
+        let (_, best_more, _, _) = solve(7, 60);
+        assert!(best_more <= best1 + 1e-9);
+    }
+}
