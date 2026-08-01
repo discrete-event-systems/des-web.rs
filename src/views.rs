@@ -67,6 +67,17 @@ fn db_offline() -> Markup {
     table_note("Postgres is not reachable — set DATABASE_URL (local, Supabase, or RDS) and run scripts/dev-db.sh to converge + seed the schema.")
 }
 
+/// A failed DB query. Log the real error server-side (for operators) and show
+/// the client a generic notice — never echo raw `DbErr` text, which leaks
+/// schema/table names and query internals to the browser.
+fn db_error(context: &str, err: &sea_orm::DbErr) -> Markup {
+    tracing::warn!(context, error = %err, "des-web db query failed");
+    html! {
+        (db_offline())
+        p class="note note-dim" { "(query failed — see server logs)" }
+    }
+}
+
 fn status_chip(status: &str) -> Markup {
     html! { span class={ "chip chip-" (status) } { (status) } }
 }
@@ -200,11 +211,13 @@ pub async fn partial_sims(State(app): State<AppState>) -> Markup {
             (table_note("des_web_sims is empty — run schema/seed.sql (or scripts/dev-db.sh) to load the catalog."))
             (fallback_cards())
         },
-        Err(err) => html! {
-            (db_offline())
-            p class="note note-dim" { "(" (err.to_string()) ")" }
-            (fallback_cards())
-        },
+        Err(err) => {
+            tracing::warn!(error = %err, "des-web sims catalog query failed");
+            html! {
+                (db_offline())
+                (fallback_cards())
+            }
+        }
     }
 }
 
@@ -267,7 +280,7 @@ pub async fn partial_soccer_tournaments(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No tournaments yet — run schema/seed.sql for demo data.")
         }
@@ -316,7 +329,7 @@ pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => table_note("No matches recorded yet."),
         Ok(rows) => html! {
             table {
@@ -357,7 +370,7 @@ pub async fn partial_soccer_runs(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No learning runs yet — run schema/seed.sql for demo data.")
         }
@@ -422,7 +435,7 @@ pub async fn partial_elevator_runs(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No elevator runs yet — run schema/seed.sql for demo data.")
         }
@@ -460,7 +473,7 @@ pub async fn partial_elevator_decisions(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => table_note("No dispatch decisions recorded."),
         Ok(rows) => html! {
             table {
@@ -501,7 +514,7 @@ pub async fn partial_routing_solves(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No persisted solves yet — run one above, or load schema/seed.sql.")
         }
