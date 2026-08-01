@@ -171,9 +171,14 @@ fn router(state: AppState) -> Router {
         .route("/auth/status", get(auth::status))
         // plumbing
         .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
         .route("/assets/app.css", get(app_css))
         .route("/assets/htmx.min.js", get(htmx_js))
         .fallback(views::not_found)
+        // Cap request bodies (the largest is a planner roster / routing spec —
+        // well under this); rejects oversized posts with 413 before handling.
+        .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(middleware::from_fn(security_headers))
         .with_state(state)
 }
 
