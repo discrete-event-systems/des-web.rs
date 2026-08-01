@@ -278,7 +278,7 @@ pub async fn partial_soccer_tournaments(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No tournaments yet — run schema/seed.sql for demo data.")
         }
@@ -327,7 +327,7 @@ pub async fn partial_soccer_matches(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => table_note("No matches recorded yet."),
         Ok(rows) => html! {
             table {
@@ -368,7 +368,7 @@ pub async fn partial_soccer_runs(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No learning runs yet — run schema/seed.sql for demo data.")
         }
@@ -433,7 +433,7 @@ pub async fn partial_elevator_runs(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No elevator runs yet — run schema/seed.sql for demo data.")
         }
@@ -471,7 +471,7 @@ pub async fn partial_elevator_decisions(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => table_note("No dispatch decisions recorded."),
         Ok(rows) => html! {
             table {
@@ -512,7 +512,7 @@ pub async fn partial_routing_solves(State(app): State<AppState>) -> Markup {
         .all(db)
         .await
     {
-        Err(err) => html! { (db_offline()) p class="note note-dim" { "(" (err.to_string()) ")" } },
+        Err(err) => db_error("partial", &err),
         Ok(rows) if rows.is_empty() => {
             table_note("No persisted solves yet — run one above, or load schema/seed.sql.")
         }
