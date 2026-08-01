@@ -126,23 +126,21 @@ async fn proxy(app: AppState, path: &str, body: Bytes) -> Response {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("application/json")
                 .to_string();
-            let mut response = Response::builder()
+            // Do not echo the upstream URL back to the client — it's an
+            // internal address; keep it server-side only.
+            Response::builder()
                 .status(status)
                 .header(header::CONTENT_TYPE, content_type)
                 .body(Body::from_stream(resp.bytes_stream()))
-                .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response());
-            response
-                .headers_mut()
-                .insert("x-des-web-proxied-to", upstream.parse().unwrap());
-            response
+                .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response())
         }
-        Err(err) => (
-            StatusCode::BAD_GATEWAY,
-            Json(json!({
-                "error": format!("proxy to des-rs failed: {err}"),
-                "upstream": upstream,
-            })),
-        )
-            .into_response(),
+        Err(err) => {
+            tracing::warn!(%upstream, error = %err, "des-web planner proxy to des-rs failed");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "upstream solver unavailable" })),
+            )
+                .into_response()
+        }
     }
 }

@@ -19,8 +19,9 @@ mod views;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{Path, State};
-use axum::http::header;
+use axum::extract::{DefaultBodyLimit, Path, Request, State};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -39,6 +40,8 @@ pub struct AppState {
     pub planner_html: Arc<str>,
 }
 
+/// Liveness: the process is up. Always 200 (des-web serves pages even with no
+/// DB — see the degraded-mode rule), with a status snapshot in the body.
 async fn healthz(State(app): State<AppState>) -> Json<serde_json::Value> {
     Json(json!({
         "ok": true,
@@ -47,6 +50,47 @@ async fn healthz(State(app): State<AppState>) -> Json<serde_json::Value> {
         "supabase": app.cfg.supabase().is_some(),
         "desUpstream": app.cfg.des_upstream_url,
     }))
+}
+
+/// Readiness: ready to serve its purpose. Ready when no DB is configured
+/// (intentional degraded mode) or the configured DB is reachable; 503 only when
+/// a DB is configured but unreachable, so an orchestrator can gate traffic.
+async fn readyz(State(app): State<AppState>) -> Response {
+    let ready = app.db.is_none() || db::ping(&app.db).await;
+    let code = if ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (code, Json(json!({ "ready": ready }))).into_response()
+}
+
+/// Baseline security headers on every response. The vendored artifact pages and
+/// first-party pages are fully self-contained (inline JS/CSS, no external
+/// requests), so a `'self' 'unsafe-inline'` CSP holds without breaking them
+/// while still blocking external loads, framing, and base-tag hijacking.
+async fn security_headers(req: Request, next: Next) -> Response {
+    let mut resp = next.run(req).await;
+    let h = resp.headers_mut();
+    h.insert(
+        "content-security-policy",
+        HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; \
+             style-src 'self' 'unsafe-inline'; img-src 'self' data:; \
+             connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; \
+             form-action 'self'",
+        ),
+    );
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    h.insert("x-frame-options", HeaderValue::from_static("DENY"));
+    h.insert(
+        "referrer-policy",
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    resp
 }
 
 async fn app_css() -> impl IntoResponse {
@@ -130,9 +174,14 @@ fn router(state: AppState) -> Router {
         .route("/auth/status", get(auth::status))
         // plumbing
         .route("/healthz", get(healthz))
+        .route("/readyz", get(readyz))
         .route("/assets/app.css", get(app_css))
         .route("/assets/htmx.min.js", get(htmx_js))
         .fallback(views::not_found)
+        // Cap request bodies (the largest is a planner roster / routing spec —
+        // well under this); rejects oversized posts with 413 before handling.
+        .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(middleware::from_fn(security_headers))
         .with_state(state)
 }
 
