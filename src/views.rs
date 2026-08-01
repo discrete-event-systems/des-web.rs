@@ -211,11 +211,13 @@ pub async fn partial_sims(State(app): State<AppState>) -> Markup {
             (table_note("des_web_sims is empty — run schema/seed.sql (or scripts/dev-db.sh) to load the catalog."))
             (fallback_cards())
         },
-        Err(err) => html! {
-            (db_offline())
-            p class="note note-dim" { "(" (err.to_string()) ")" }
-            (fallback_cards())
-        },
+        Err(err) => {
+            tracing::warn!(error = %err, "des-web sims catalog query failed");
+            html! {
+                (db_offline())
+                (fallback_cards())
+            }
+        }
     }
 }
 
