@@ -98,3 +98,72 @@ jobs:
           SHADOW_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           TARGET_DATABASE_URL: postgres://postgres:postgres@localhost:5432/des_web_ci
         run: scripts/dpm.sh verify
+
+  # Browser end-to-end: build + start the release server against a seeded
+  # Postgres, then drive the real pages, htmx partials, the routing solver, and
+  # the hardening headers with headless Chromium (Playwright, e2e/).
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/des_web_ci
+      HOST: 127.0.0.1
+      PORT: "8130"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - run: cargo build --locked --release
+      - name: create + seed the e2e database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'create database des_web_ci'
+          cat libs/pg-defs/schema/schema.sql schema/des-web.sql \
+            | psql -h localhost -U postgres -d des_web_ci -v ON_ERROR_STOP=1 -q
+          psql -h localhost -U postgres -d des_web_ci -v ON_ERROR_STOP=1 -q -f schema/seed.sql
+      - name: start des-web and wait for health
+        run: |
+          ./target/release/des-web &
+          echo $! > /tmp/des-web.pid
+          for _ in $(seq 1 30); do
+            curl -sf "http://127.0.0.1:8130/healthz" && break || sleep 1
+          done
+          curl -sf "http://127.0.0.1:8130/healthz"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: install e2e deps + chromium
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: run playwright e2e
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8130
+        run: npm test
+      - name: stop des-web
+        if: always()
+        run: kill "$(cat /tmp/des-web.pid)" 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
