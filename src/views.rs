@@ -67,6 +67,17 @@ fn db_offline() -> Markup {
     table_note("Postgres is not reachable — set DATABASE_URL (local, Supabase, or RDS) and run scripts/dev-db.sh to converge + seed the schema.")
 }
 
+/// A failed DB query. Log the real error server-side (for operators) and show
+/// the client a generic notice — never echo raw `DbErr` text, which leaks
+/// schema/table names and query internals to the browser.
+fn db_error(context: &str, err: &sea_orm::DbErr) -> Markup {
+    tracing::warn!(context, error = %err, "des-web db query failed");
+    html! {
+        (db_offline())
+        p class="note note-dim" { "(query failed — see server logs)" }
+    }
+}
+
 fn status_chip(status: &str) -> Markup {
     html! { span class={ "chip chip-" (status) } { (status) } }
 }
