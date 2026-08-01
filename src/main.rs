@@ -81,7 +81,10 @@ async fn security_headers(req: Request, next: Next) -> Response {
              form-action 'self'",
         ),
     );
-    h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+    h.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
     h.insert("x-frame-options", HeaderValue::from_static("DENY"));
     h.insert(
         "referrer-policy",
