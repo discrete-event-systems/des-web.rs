@@ -17,14 +17,8 @@ const MAX_HTML_BYTES: usize = 8 * 1024 * 1024;
 /// paths overlap. Canonical service-local aliases come first; historical routes
 /// remain so direct callers can migrate independently.
 const ROUTE_REWRITES: &[(&str, &str)] = &[
-    (
-        "/games/soccer/planner",
-        "/des/games/soccer/planner",
-    ),
-    (
-        "/games/elevator/player",
-        "/des/games/elevator/player",
-    ),
+    ("/games/soccer/planner", "/des/games/soccer/planner"),
+    ("/games/elevator/player", "/des/games/elevator/player"),
     (
         "/labs/factory-floor-track3t",
         "/des/labs/factory-floor-track3t",
@@ -57,8 +51,7 @@ fn has_path_prefix(value: &str, prefix: &str) -> bool {
 }
 
 fn is_mounted_below_des(forwarded_prefix: Option<&str>, configured_mode: Option<&str>) -> bool {
-    forwarded_prefix
-        .is_some_and(|value| value.trim_end_matches('/') == PUBLIC_BASE_PATH)
+    forwarded_prefix.is_some_and(|value| value.trim_end_matches('/') == PUBLIC_BASE_PATH)
         || configured_mode.is_some_and(|value| value.trim().eq_ignore_ascii_case("mounted"))
 }
 
@@ -124,8 +117,7 @@ pub async fn rewrite_public_paths(request: Request, next: Next) -> Response {
         .get("x-forwarded-prefix")
         .and_then(|value| value.to_str().ok());
     let configured_mode = std::env::var("DES_PUBLIC_PATH_MODE").ok();
-    let mounted_below_des =
-        is_mounted_below_des(forwarded_prefix, configured_mode.as_deref());
+    let mounted_below_des = is_mounted_below_des(forwarded_prefix, configured_mode.as_deref());
 
     let mut response = next.run(request).await;
     if !mounted_below_des {

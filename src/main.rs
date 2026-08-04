@@ -143,28 +143,16 @@ fn router(state: AppState) -> Router {
         .route("/games/soccer/", get(views::soccer_page))
         .route("/games/soccer/planner", get(planner::planner_page))
         .route("/games/soccer/planner/", get(planner::planner_page))
-        .route(
-            "/games/soccer/planner/solve",
-            post(planner::proxy_solve),
-        )
-        .route(
-            "/games/soccer/planner/stream",
-            post(planner::proxy_stream),
-        )
+        .route("/games/soccer/planner/solve", post(planner::proxy_solve))
+        .route("/games/soccer/planner/stream", post(planner::proxy_stream))
         .route("/games/elevator", get(views::elevator_page))
         .route("/games/elevator/", get(views::elevator_page))
         .route("/games/elevator/player", get(elevator_player_page))
         .route("/games/elevator/player/", get(elevator_player_page))
         .route("/tools/routing", get(views::routing_page))
         .route("/tools/routing/", get(views::routing_page))
-        .route(
-            "/labs/factory-floor-track3t",
-            get(track3t_page),
-        )
-        .route(
-            "/labs/factory-floor-track3t/",
-            get(track3t_page),
-        )
+        .route("/labs/factory-floor-track3t", get(track3t_page))
+        .route("/labs/factory-floor-track3t/", get(track3t_page))
         .route("/api/v1/catalog", get(catalog::api_catalog))
         .route("/api/v1/solve", post(routing::post_solve))
         .route("/api/v1/solve/{id}", get(routing::get_solve))
