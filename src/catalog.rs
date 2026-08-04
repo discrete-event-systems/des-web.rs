@@ -21,19 +21,19 @@ pub async fn models_page() -> Markup {
                 code { "/des" } " route namespace."
             }
             div class="cards" {
-                a class="card" href="/des/games/soccer" {
+                a class="card" href="/games/soccer" {
                     h3 { "Soccer" }
                     p { "Tournament learning, rotation planning, MIP/MDP solves, and solver traces." }
                 }
-                a class="card" href="/des/games/elevator" {
+                a class="card" href="/games/elevator" {
                     h3 { "Elevator" }
                     p { "Future-event-list dispatch runs using LOOK, MDP-table, and POMDP-belief policies." }
                 }
-                a class="card" href="/des/tools/routing" {
+                a class="card" href="/tools/routing" {
                     h3 { "Routing" }
                     p { "VRP/TSP solver runs and persisted route solutions." }
                 }
-                a class="card" href="/des/labs/factory-floor-track3t" {
+                a class="card" href="/labs/factory-floor-track3t" {
                     h3 { "Factory floor" }
                     p { "Track3t warehouse-floor discrete-event animation." }
                 }
@@ -54,10 +54,10 @@ pub async fn run_page(Path(run_id): Path<String>) -> Markup {
                 "index is populated incrementally from Postgres and NATS/JetStream metadata."
             }
             div class="cards" {
-                a class="card" href="/des/games/soccer" { h3 { "Soccer runs" } }
-                a class="card" href="/des/games/elevator" { h3 { "Elevator runs" } }
-                a class="card" href="/des/tools/routing" { h3 { "Routing solves" } }
-                a class="card" href="/des/artifacts" { h3 { "Generated artifacts" } }
+                a class="card" href="/games/soccer" { h3 { "Soccer runs" } }
+                a class="card" href="/games/elevator" { h3 { "Elevator runs" } }
+                a class="card" href="/tools/routing" { h3 { "Routing solves" } }
+                a class="card" href="/artifacts" { h3 { "Generated artifacts" } }
             }
         },
     )

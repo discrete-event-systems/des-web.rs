@@ -13,8 +13,28 @@ use axum::response::{IntoResponse, Response};
 pub const PUBLIC_BASE_PATH: &str = "/des";
 const MAX_HTML_BYTES: usize = 8 * 1024 * 1024;
 
-/// Ordered longest/specific-first because several legacy paths overlap.
+/// Ordered longest/specific-first because several service-local and legacy
+/// paths overlap. Canonical service-local aliases come first; historical routes
+/// remain so direct callers can migrate independently.
 const ROUTE_REWRITES: &[(&str, &str)] = &[
+    (
+        "/games/soccer/planner",
+        "/des/games/soccer/planner",
+    ),
+    (
+        "/games/elevator/player",
+        "/des/games/elevator/player",
+    ),
+    (
+        "/labs/factory-floor-track3t",
+        "/des/labs/factory-floor-track3t",
+    ),
+    ("/games/soccer", "/des/games/soccer"),
+    ("/games/elevator", "/des/games/elevator"),
+    ("/tools/routing", "/des/tools/routing"),
+    ("/api/v1", "/des/api/v1"),
+    ("/models", "/des/models"),
+    ("/runs", "/des/runs"),
     ("/soccer/planner", "/des/games/soccer/planner"),
     ("/elevator/player", "/des/games/elevator/player"),
     ("/api/solve", "/des/api/v1/solve"),
@@ -31,9 +51,15 @@ const ROUTE_REWRITES: &[(&str, &str)] = &[
 
 fn has_path_prefix(value: &str, prefix: &str) -> bool {
     value == prefix
-        || value
-            .strip_prefix(prefix)
-            .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('?') || rest.starts_with('#'))
+        || value.strip_prefix(prefix).is_some_and(|rest| {
+            rest.starts_with('/') || rest.starts_with('?') || rest.starts_with('#')
+        })
+}
+
+fn is_mounted_below_des(forwarded_prefix: Option<&str>, configured_mode: Option<&str>) -> bool {
+    forwarded_prefix
+        .is_some_and(|value| value.trim_end_matches('/') == PUBLIC_BASE_PATH)
+        || configured_mode.is_some_and(|value| value.trim().eq_ignore_ascii_case("mounted"))
 }
 
 /// Convert a service-local/legacy path to the public `/des` route contract.
@@ -46,17 +72,17 @@ pub fn canonical_public_path(value: &str) -> Option<String> {
     if value == "/" {
         return Some(format!("{PUBLIC_BASE_PATH}/"));
     }
-    for (legacy, canonical) in ROUTE_REWRITES {
-        if has_path_prefix(value, legacy) {
-            return Some(format!("{canonical}{}", &value[legacy.len()..]));
+    for (service_local, canonical) in ROUTE_REWRITES {
+        if has_path_prefix(value, service_local) {
+            return Some(format!("{canonical}{}", &value[service_local.len()..]));
         }
     }
     None
 }
 
-fn replace_quoted_path(mut html: String, legacy: &str, canonical: &str) -> String {
+fn replace_quoted_path(mut html: String, service_local: &str, canonical: &str) -> String {
     for quote in ['"', '\'', '`'] {
-        let from = format!("{quote}{legacy}");
+        let from = format!("{quote}{service_local}");
         let to = format!("{quote}{canonical}");
         html = html.replace(&from, &to);
     }
@@ -67,8 +93,8 @@ fn replace_quoted_path(mut html: String, legacy: &str, canonical: &str) -> Strin
 /// first-party HTML. Vendored gzip artifacts are skipped by the middleware.
 fn rewrite_html(input: &str) -> String {
     let mut html = input.to_owned();
-    for (legacy, canonical) in ROUTE_REWRITES {
-        html = replace_quoted_path(html, legacy, canonical);
+    for (service_local, canonical) in ROUTE_REWRITES {
+        html = replace_quoted_path(html, service_local, canonical);
     }
 
     // The catalog brand/home links are the only exact root links. Restrict the
@@ -88,12 +114,19 @@ fn rewrite_html(input: &str) -> String {
 
 /// Response middleware that keeps direct service-local routes stable while
 /// publishing one canonical browser namespace below `/des`.
+///
+/// A trusted reverse proxy may signal the mount with `X-Forwarded-Prefix`.
+/// Kubernetes sets `DES_PUBLIC_PATH_MODE=mounted` as an explicit fallback so
+/// link generation does not depend on one proxy implementation detail.
 pub async fn rewrite_public_paths(request: Request, next: Next) -> Response {
-    let mounted_below_des = request
+    let forwarded_prefix = request
         .headers()
         .get("x-forwarded-prefix")
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.trim_end_matches('/') == PUBLIC_BASE_PATH);
+        .and_then(|value| value.to_str().ok());
+    let configured_mode = std::env::var("DES_PUBLIC_PATH_MODE").ok();
+    let mounted_below_des =
+        is_mounted_below_des(forwarded_prefix, configured_mode.as_deref());
+
     let mut response = next.run(request).await;
     if !mounted_below_des {
         return response;
@@ -153,17 +186,21 @@ pub async fn rewrite_public_paths(request: Request, next: Next) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_public_path, rewrite_html};
+    use super::{canonical_public_path, is_mounted_below_des, rewrite_html};
 
     #[test]
-    fn maps_legacy_routes_to_the_canonical_taxonomy() {
+    fn maps_service_local_and_legacy_routes_to_the_canonical_taxonomy() {
         assert_eq!(
-            canonical_public_path("/soccer/planner?seed=42").as_deref(),
+            canonical_public_path("/games/soccer/planner?seed=42").as_deref(),
             Some("/des/games/soccer/planner?seed=42")
         );
         assert_eq!(
             canonical_public_path("/routing#latest").as_deref(),
             Some("/des/tools/routing#latest")
+        );
+        assert_eq!(
+            canonical_public_path("/api/v1/solve/abc").as_deref(),
+            Some("/des/api/v1/solve/abc")
         );
         assert_eq!(
             canonical_public_path("/api/solve/abc").as_deref(),
@@ -178,8 +215,18 @@ mod tests {
     }
 
     #[test]
+    fn mount_detection_accepts_proxy_header_or_explicit_deployment_mode() {
+        assert!(is_mounted_below_des(Some("/des"), None));
+        assert!(is_mounted_below_des(Some("/des/"), None));
+        assert!(is_mounted_below_des(None, Some("mounted")));
+        assert!(is_mounted_below_des(None, Some("MOUNTED")));
+        assert!(!is_mounted_below_des(None, None));
+        assert!(!is_mounted_below_des(Some("/other"), Some("local")));
+    }
+
+    #[test]
     fn rewrites_html_attributes_and_javascript_literals() {
-        let input = r#"<a href="/soccer">game</a><script>fetch('/api/solve')</script><link href="/assets/app.css"><a href="/">home</a>"#;
+        let input = r#"<a href="/games/soccer">game</a><script>fetch('/api/v1/solve')</script><link href="/assets/app.css"><a href="/">home</a>"#;
         let output = rewrite_html(input);
         assert!(output.contains("/des/games/soccer"));
         assert!(output.contains("/des/api/v1/solve"));
