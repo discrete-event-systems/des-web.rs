@@ -1,0 +1,55 @@
+name: publish-image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/discrete-event-systems/des-web.rs
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: log in to GHCR
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: build and publish immutable image
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --provenance=true \
+            --sbom=true \
+            --tag "${IMAGE}:sha-${GITHUB_SHA}" \
+            --tag "${IMAGE}:main" \
+            --push \
+            .
+
+      - name: record the promoted digest
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${IMAGE}:sha-${GITHUB_SHA}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test -n "${digest}"
+          {
+            echo "## des-web image"
+            echo
+            echo "- source: \`${GITHUB_SHA}\`"
+            echo "- immutable: \`${IMAGE}:sha-${GITHUB_SHA}@${digest}\`"
+            echo "- GitOps owner: \`ORESoftware/k8s-cluster\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

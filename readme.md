@@ -1,135 +1,150 @@
-# des-web.rs — MASH server for discrete-event sims & games
+# des-web.rs — canonical DES web application
 
-One standalone Rust web server that serves the discrete-event sim/game pages
-from [ORESoftware/k8s-cluster](https://github.com/ORESoftware/k8s-cluster)
-(**copied, not ripped out** — the originals keep running in-cluster), with the
-data behind them read from the shared Postgres contract.
+`des-web.rs` is the dynamic MASH application for the
+[`discrete-event-systems`](https://github.com/discrete-event-systems)
+organization. `ORESoftware/k8s-cluster` deploys it as `dd-des-web` and mounts it
+below the single public namespace **`/des`**.
 
-For the public, dependency-free showcase, visit the Astro/GitHub Pages site at
-[discrete-event-systems.github.io](https://discrete-event-systems.github.io/).
-This repository remains the dynamic application server; the Pages site keeps
-its simulation and game galleries static and browser-isolated.
+The ownership boundary is deliberate:
 
-**MASH** — the stack:
+- this repository owns pages, browser behavior, routes, APIs, tests, and the
+  container image;
+- `ORESoftware/k8s-cluster` owns Deployment/Service/NetworkPolicy/PDB,
+  observability wiring, gateway rules, compatibility redirects, and rollout;
+- engine repositories own simulation behavior and reusable libraries, not
+  public ingress configuration.
 
-| letter | piece | here |
+This replaces the previous split where `/des/` pointed at
+`dd-des-simulator`, newer pages lived here, and selected links jumped back to
+`/des-rs/*`.
+
+## Canonical route surface
+
+| public route | purpose | service-local route |
 |---|---|---|
-| **M** | [maud](https://maud.lambda.xyz) | compile-time HTML for all first-party pages/partials |
-| **A** | [axum](https://github.com/tokio-rs/axum) 0.8 | routing, extractors, graceful shutdown |
-| **S** | [Supabase](https://supabase.com) | GoTrue magic-link login (`/login`) + optional Postgres provider |
-| **S** | [SeaORM](https://www.sea-ql.org/SeaORM/) 1.1 | all DB access (not sqlx directly) via the generated pg-defs entity crate |
-| **H** | [htmx](https://htmx.org) 2 (vendored) | partial loading/refresh for every DB-backed section |
+| `/des/` | DES catalog | `/` |
+| `/des/models` | cross-model index | `/models` |
+| `/des/games/soccer` | tournaments and learning | `/games/soccer` |
+| `/des/games/soccer/planner` | rotation planner | `/games/soccer/planner` |
+| `/des/games/elevator` | FEL dispatch learning | `/games/elevator` |
+| `/des/games/elevator/player` | elevator playback | `/games/elevator/player` |
+| `/des/tools/routing` | live VRP/TSP solver | `/tools/routing` |
+| `/des/labs/factory-floor-track3t` | Track3t factory-floor lab | `/labs/factory-floor-track3t` |
+| `/des/runs/{run_id}` | stable cross-model run entry | `/runs/{run_id}` |
+| `/des/artifacts/{artifact_id}` | rendered/vendored output | `/artifacts/{artifact_id}` |
+| `/des/api/v1/catalog` | machine-readable route catalog | `/api/v1/catalog` |
+| `/des/api/v1/solve` | routing solve API | `/api/v1/solve` |
+| `/des/api/v1/solve/{id}` | routing solve result | `/api/v1/solve/{id}` |
 
-## Pages and where they were copied from
+The gateway strips `/des/` and sends `X-Forwarded-Prefix: /des`. In that
+mounted mode, response middleware rewrites first-party HTML links, htmx URLs,
+JavaScript endpoint strings, and redirects to the public taxonomy. Without that
+header the historical root routes continue to work, preserving local
+quickstarts and old in-cluster callers.
 
-| route | what | copied from (k8s-cluster) | data |
-|---|---|---|---|
-| `/` | catalog of sims/games | new (maud+htmx) | `des_web_sims` |
-| `/soccer` | tournaments, knockout matches, learning runs | new (maud+htmx) | pg-defs `des_soccer_*` |
-| `/soccer/planner` | interactive rotation planner (MIP/MDP) | `soccer-sim-game-engine.rs` `planner_ui.html` (served by des-rs) | solves proxy to `DES_UPSTREAM_URL` |
-| `/routing` | live VRP/TSP canvas dashboard | `routing-server-rs/src/dashboard.rs` | in-process solver; solves persist to `des_web_routing_solves` |
-| `/track3t` | Track3t warehouse-floor DES animation | `discrete-event-system/out/factory-floor-track3t.html` | self-contained artifact |
-| `/elevator` | FEL elevator dispatch learning (LOOK/MDP/POMDP) | new (maud+htmx) | pg-defs `des_fel_elevator_*` |
-| `/elevator/player` | animated high-rise elevator playback | `discrete-event-system/out/elevator.html` | self-contained artifact |
-| `/artifacts` | vendored DES engine renders (incl. soccer MIP/LP traces) | `discrete-event-system/out/*.html` | self-contained artifacts |
-| `/login` | Supabase GoTrue magic-link login | pattern from `athleto-app-rs` | Supabase |
+`/des-rs/*` and `/out/*` are compatibility surfaces only. New links must use
+`/des/*`. See [`docs/route-contract.md`](docs/route-contract.md) for the full
+contract, migration rules, and rollout order.
 
-Vendored artifacts are stored **gzip-compressed** in `assets/artifacts/` and
-served as-stored with `Content-Encoding: gzip` (the 31 MB track3t page is
-667 KB over the wire). Every artifact is fully self-contained HTML/JS — no CDN,
-no external requests, which also goes for htmx and all first-party assets.
+## Application pages
 
-## pg-defs — the shared schema contract
+| service-local route | what | source/data |
+|---|---|---|
+| `/` | catalog of sims/games | `des_web_sims` with built-in fallback |
+| `/soccer` | tournaments, knockout matches, learning runs | pg-defs `des_soccer_*` |
+| `/soccer/planner` | interactive rotation planner | vendored planner; solve proxy to `DES_UPSTREAM_URL` |
+| `/routing` | live VRP/TSP dashboard | in-process solver + `des_web_routing_solves` |
+| `/track3t` | warehouse-floor animation | vendored DES artifact |
+| `/elevator` | FEL dispatch learning | pg-defs `des_fel_elevator_*` |
+| `/elevator/player` | high-rise playback | vendored DES artifact |
+| `/artifacts` | generated DES renders | gzip-vendored self-contained HTML |
+| `/login` | Supabase magic-link login | optional GoTrue configuration |
 
-This repo is 100% connected to
-[pg-defs](https://github.com/ORESoftware/k8s-libs-and-shared-defs) (the
-`libs/` **git submodule**, private — you need repo access):
+Vendored artifacts are stored gzip-compressed in `assets/artifacts/` and served
+as stored with `Content-Encoding: gzip`. They are fully self-contained and are
+not rewritten by the `/des` response middleware.
 
-1. **Schema**: `libs/pg-defs/schema/schema.sql` is the canonical contract.
-   `schema/des-web.sql` layers two des-web-owned tables on top
-   (`des_web_sims`, `des_web_routing_solves`). Never edit generated adapters;
-   never write imperative migrations.
-2. **Rust**: SeaORM entities come from the generated
-   `dd-pg-defs-sea-orm` crate (`libs/pg-defs/generated/rust/sea-orm`, a path
-   dependency). Overlay-table entities live in `src/entities.rs`, mirroring
-   `schema/des-web.sql`.
+## MASH stack
 
-## Migrations — dpm (declarative, for AWS RDS / Supabase / local)
+| letter | component | role |
+|---|---|---|
+| M | maud | compile-time HTML pages and htmx fragments |
+| A | axum 0.8 | routing, middleware, probes, graceful shutdown |
+| S | Supabase | optional GoTrue magic-link auth and Postgres provider |
+| S | SeaORM 1.1 | typed access through the generated pg-defs entity crate |
+| H | htmx 2 | independently loading DB-backed sections |
 
-Migrations are declarative via
-[dpm](https://github.com/declarative-migrations/declarative-postgres-migrate.rs):
-the combined desired state (pg-defs `schema.sql` + `schema/des-web.sql`) is the
-source of truth and the target database **converges** onto it. No migration
-files are tracked — dpm introspects both sides and emits ordered, reviewable
-SQL.
+The process always boots. Missing Postgres, Supabase, or DES engine upstreams
+degrade only the features that need them and leave the catalog available.
+
+## Shared schema contract
+
+The private `libs/` git submodule points at
+`ORESoftware/k8s-libs-and-shared-defs`:
+
+1. `libs/pg-defs/schema/schema.sql` is the shared desired state.
+2. `schema/des-web.sql` adds the des-web-owned `des_web_sims` and
+   `des_web_routing_solves` tables.
+3. `dd-pg-defs-sea-orm` is consumed as a generated path dependency.
+4. `schema/seed.sql` provides idempotent local/CI demo data.
+
+Declarative migrations use `dpm` 0.3.2 or newer:
 
 ```sh
-brew install declarative-migrations/tap/dpm
-
-export SHADOW_DATABASE_URL=postgres://localhost:5432/postgres  # throwaway-DB server, never prod
-export TARGET_DATABASE_URL=postgres://...                      # RDS / Supabase / local
-
-scripts/dpm.sh diff      # print the migration SQL (never executes)
-scripts/dpm.sh verify    # rehearse on a shadow replica, prove convergence
-scripts/dpm.sh review    # diff + AI review
-scripts/dpm.sh apply     # generate + execute (interactive confirm)
+export SHADOW_DATABASE_URL=postgres://localhost:5432/postgres
+export TARGET_DATABASE_URL=postgres://localhost:5432/des_web_dev
+scripts/dpm.sh diff
+scripts/dpm.sh verify
+scripts/dpm.sh review
+scripts/dpm.sh apply
 ```
 
-Target resolution matches the pg-defs tooling: `TARGET_DATABASE_URL` →
-`AGENT_TASKS_RDS_DATABASE_URL` → `RDS_DATABASE_URL` → `DATABASE_URL` →
-`PG_DATABASE_URL` → `SUPABASE_DB_URL`. Destructive statements are emitted
-commented-out and refused at apply time without dpm's two explicit consent
-flags. Never apply automatically; a human reviews the SQL first.
+Destructive statements remain review-gated; production applies are never an
+automatic application-start side effect.
 
-Requires **dpm ≥ 0.3.2**: earlier builds (≤0.3.1) hit a deparse bug where
-varchar IN-list CHECK constraints re-emit as `(ARRAY[...])::text[]` and never
-converge, so a drift check would report hundreds of phantom drop/re-add
-changes against the pg-defs tables. v0.3.2 fixes convergence, and this repo's
-schema `dpm verify`s clean on it. `dpm version` must print `0.3.2` or newer.
-
-Supabase notes: point dpm and the app at the **session pooler or direct
-connection** (port 5432), not the transaction pooler — DDL and prepared
-statements need real sessions — and keep `SHADOW_DATABASE_URL` on a local
-server (Supabase won't let dpm create/drop scratch databases).
-
-## Quickstart (local)
+## Local development
 
 ```sh
 git clone --recurse-submodules git@github.com:discrete-event-systems/des-web.rs.git
 cd des-web.rs
-
-# start Homebrew Postgres 17, create des_web_dev, dpm-apply the combined
-# schema, load idempotent seed data (demo tournaments, elevator runs, catalog):
 scripts/dev-db.sh
-
 DATABASE_URL=postgres://localhost:5432/des_web_dev cargo run
 open http://localhost:8130
 ```
 
-`.env.example` documents every knob (Supabase auth, RDS URLs, the optional
-`DES_UPSTREAM_URL` that turns the copied soccer-planner page into a live
-solver by proxying to a running des-rs).
+Local development intentionally uses the service-local routes. To inspect the
+public-path rewrite without Kubernetes, send the same trusted proxy header the
+gateway sends:
 
-The server always boots — no DB, no Supabase, no upstream just degrade their
-own sections with a visible notice.
+```sh
+curl -H 'X-Forwarded-Prefix: /des' http://localhost:8130/
+```
+
+`.env.example` documents database URL resolution, Supabase, and
+`DES_UPSTREAM_URL` for live soccer planner solves.
+
+## Tests and publication
+
+CI runs formatting, Clippy, Rust tests, declarative schema convergence, seeded
+Postgres assertions, and Playwright browser tests. Route tests cover both the
+service-local compatibility surface and the `/des` public rewrite contract.
+
+On `main`, `publish-image.yml` builds the initialized-submodule Docker context
+and publishes immutable SHA and `main` tags to
+`ghcr.io/discrete-event-systems/des-web.rs`. GitOps must promote the resulting
+**digest**, not a mutable tag, into `ORESoftware/k8s-cluster`.
 
 ## Layout
 
+```text
+src/main.rs          axum router, state, startup
+src/public_paths.rs  /des mounting and compatibility rewrite
+src/catalog.rs       model/run pages + route catalog API
+src/views.rs         maud pages and htmx fragments
+src/routing.rs       VRP/TSP solver and persistence
+src/planner.rs       planner page and DES-engine proxy
+src/artifacts.rs     gzip artifact serving
+schema/              declarative desired state + seed
+scripts/             dpm and local database helpers
+e2e/                 Playwright browser contract tests
 ```
-src/main.rs        router + state + startup (axum)
-src/views.rs       maud pages + htmx partials
-src/routing.rs     in-process VRP/TSP (multi-start NN + 2-opt) + persistence
-src/planner.rs     vendored soccer-planner page + des-rs proxy
-src/artifacts.rs   gzip-vendored DES artifact serving
-src/auth.rs        Supabase GoTrue magic link
-src/entities.rs    SeaORM entities for the overlay tables
-schema/des-web.sql overlay desired-state (dpm source, with pg-defs schema.sql)
-schema/seed.sql    idempotent demo data (pg-defs + overlay tables)
-scripts/dpm.sh     declarative migration entrypoint
-libs/              pg-defs submodule (schema contract + generated SeaORM crate)
-```
-
-Docker: `docker build .` (initialize the `libs` submodule first). CI uses the
-`LIBS_DEPLOY_KEY` Actions secret, backed by a read-only deploy key scoped only
-to the private pg-defs repository. Forked pull requests cannot receive that
-secret and therefore cannot run the submodule-dependent jobs.
