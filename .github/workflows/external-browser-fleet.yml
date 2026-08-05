@@ -20,14 +20,14 @@ jobs:
     permissions:
       contents: read
       packages: read
-    uses: discrete-event-systems-test/des-web-playwright-e2e/.github/workflows/browser-tests.yml@a9bab44c006d2012a4790e66e8b544cfabbdb786
+    uses: discrete-event-systems-test/des-web-playwright-e2e/.github/workflows/browser-tests.yml@781e6bc615e3e8fa27e0f3ad5530fb16e93d5719
     with:
-      suite_ref: a9bab44c006d2012a4790e66e8b544cfabbdb786
+      suite_ref: 781e6bc615e3e8fa27e0f3ad5530fb16e93d5719
 
   puppeteer:
     permissions:
       contents: read
       packages: read
-    uses: discrete-event-systems-test/des-web-puppeteer-e2e/.github/workflows/browser-tests.yml@1db20ecbd5a17363c56cb5e9b20feffb4abae04f
+    uses: discrete-event-systems-test/des-web-puppeteer-e2e/.github/workflows/browser-tests.yml@7de6de09ea957ae34872d957cc439743c22e8d9b
     with:
-      suite_ref: 1db20ecbd5a17363c56cb5e9b20feffb4abae04f
+      suite_ref: 7de6de09ea957ae34872d957cc439743c22e8d9b
