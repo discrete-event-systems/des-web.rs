@@ -1,0 +1,33 @@
+name: external browser fleet
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: external-browser-fleet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    permissions:
+      contents: read
+      packages: read
+    uses: discrete-event-systems-test/des-web-playwright-e2e/.github/workflows/browser-tests.yml@a9bab44c006d2012a4790e66e8b544cfabbdb786
+    with:
+      suite_ref: a9bab44c006d2012a4790e66e8b544cfabbdb786
+
+  puppeteer:
+    permissions:
+      contents: read
+      packages: read
+    uses: discrete-event-systems-test/des-web-puppeteer-e2e/.github/workflows/browser-tests.yml@1db20ecbd5a17363c56cb5e9b20feffb4abae04f
+    with:
+      suite_ref: 1db20ecbd5a17363c56cb5e9b20feffb4abae04f
