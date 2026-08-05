@@ -1,0 +1,137 @@
+name: Publish immutable DES browser-test fixture
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-browser-test-fixture.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-des-browser-test-fixture
+  cancel-in-progress: false
+
+env:
+  SOURCE_SHA: 77741ec8b5331617f71416748ef5f06846e43a5d
+  SOURCE_IMAGE_DIGEST: sha256:c3b32a5ef767bcdba515c8199fce363871ba2916e4c824609a09a37b3adc02e5
+  RELEASE_TAG: des-browser-fixture-77741ec8
+  ASSET_NAME: des-web-x86_64-unknown-linux-gnu.tar.gz
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out the exact production source and private generated definitions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Build the exact Dockerfile production executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          docker build \
+            --file Dockerfile \
+            --tag "des-web-browser-fixture:${SOURCE_SHA}" \
+            .
+          container_id="$(docker create "des-web-browser-fixture:${SOURCE_SHA}")"
+          trap 'docker rm --force "$container_id" >/dev/null 2>&1 || true' EXIT
+          mkdir -p dist/root
+          docker cp "$container_id:/usr/local/bin/des-web" dist/root/des-web
+          test -x dist/root/des-web
+          file dist/root/des-web
+
+      - name: Package deterministic public fixture and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_sha256="$(sha256sum dist/root/des-web | awk '{print $1}')"
+          dockerfile_sha256="$(sha256sum Dockerfile | awk '{print $1}')"
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C dist/root \
+            -czf "dist/${ASSET_NAME}" \
+            des-web
+          archive_sha256="$(sha256sum "dist/${ASSET_NAME}" | awk '{print $1}')"
+          printf '%s  %s\n' "$archive_sha256" "$ASSET_NAME" > "dist/${ASSET_NAME}.sha256"
+          jq -n \
+            --arg schemaVersion 'des-browser-fixture.v1' \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg sourceImageDigest "$SOURCE_IMAGE_DIGEST" \
+            --arg dockerfileSha256 "$dockerfile_sha256" \
+            --arg binarySha256 "$binary_sha256" \
+            --arg archiveSha256 "$archive_sha256" \
+            --arg assetName "$ASSET_NAME" \
+            '{
+              schemaVersion: $schemaVersion,
+              repository: $repository,
+              sourceSha: $sourceSha,
+              sourceImageDigest: $sourceImageDigest,
+              dockerfileSha256: $dockerfileSha256,
+              binarySha256: $binarySha256,
+              archiveSha256: $archiveSha256,
+              assetName: $assetName
+            }' > dist/fixture-provenance.json
+          cat > dist/release-notes.md <<EOF
+          Immutable browser-test fixture for the production DES web revision.
+
+          - source: \`$GITHUB_REPOSITORY@$SOURCE_SHA\`
+          - deployed image digest: \`$SOURCE_IMAGE_DIGEST\`
+          - build definition: the Dockerfile at the source revision above
+          - consumers: \`discrete-event-systems-test/des-web-playwright-e2e\` and \`discrete-event-systems-test/des-web-puppeteer-e2e\`
+
+          Consumers must verify the archive against the pinned SHA-256 in their repository before execution.
+          EOF
+          cat dist/fixture-provenance.json
+          cat "dist/${ASSET_NAME}.sha256"
+
+      - name: Create or verify the immutable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            tag_target="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq .object.sha)"
+            test "$tag_target" = "$SOURCE_SHA"
+            gh release upload "$RELEASE_TAG" \
+              "dist/${ASSET_NAME}" \
+              "dist/${ASSET_NAME}.sha256" \
+              dist/fixture-provenance.json \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "dist/${ASSET_NAME}" \
+              "dist/${ASSET_NAME}.sha256" \
+              dist/fixture-provenance.json \
+              --target "$SOURCE_SHA" \
+              --title "DES browser fixture ${SOURCE_SHA:0:8}" \
+              --notes-file dist/release-notes.md \
+              --latest=false
+          fi
+
+      - name: Publish fixture summary
+        shell: bash
+        run: |
+          {
+            echo '## DES browser-test fixture'
+            echo
+            echo "- source SHA: \`$SOURCE_SHA\`"
+            echo "- production image digest: \`$SOURCE_IMAGE_DIGEST\`"
+            echo "- release tag: \`$RELEASE_TAG\`"
+            echo "- asset: \`$ASSET_NAME\`"
+            echo "- archive SHA-256: \`$(awk '{print $1}' "dist/${ASSET_NAME}.sha256")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
