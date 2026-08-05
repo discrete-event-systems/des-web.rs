@@ -1,0 +1,73 @@
+name: publish-image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-image-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/discrete-event-systems/des-web.rs
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  publish:
+    # Fork PRs never receive package-write credentials. Same-repository branches
+    # publish an immutable candidate image so the paired GitOps PR can pin the
+    # exact application revision before either PR is merged.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          submodules: recursive
+          ssh-key: ${{ secrets.LIBS_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: log in to GHCR
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: build and publish immutable image
+        run: |
+          set -euo pipefail
+          tags=(--tag "${IMAGE}:sha-${SOURCE_SHA}")
+          if [ "${GITHUB_EVENT_NAME}" = push ] && [ "${GITHUB_REF}" = refs/heads/main ]; then
+            tags+=(--tag "${IMAGE}:main")
+          fi
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=mode=max \
+            --sbom=true \
+            --cache-from type=gha,scope=des-web \
+            --cache-to type=gha,mode=max,scope=des-web \
+            "${tags[@]}" \
+            --push \
+            .
+
+      - name: record the candidate digest
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${IMAGE}:sha-${SOURCE_SHA}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test -n "${digest}"
+          {
+            echo "## des-web image"
+            echo
+            echo "- source: \`${SOURCE_SHA}\`"
+            echo "- immutable: \`${IMAGE}:sha-${SOURCE_SHA}@${digest}\`"
+            echo "- GitOps owner: \`ORESoftware/k8s-cluster\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

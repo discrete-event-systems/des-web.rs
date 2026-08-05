@@ -9,10 +9,12 @@
 
 mod artifacts;
 mod auth;
+mod catalog;
 mod config;
 mod db;
 mod entities;
 mod planner;
+mod public_paths;
 mod routing;
 mod views;
 
@@ -46,6 +48,7 @@ async fn healthz(State(app): State<AppState>) -> Json<serde_json::Value> {
     Json(json!({
         "ok": true,
         "service": "des-web",
+        "publicBasePath": public_paths::PUBLIC_BASE_PATH,
         "db": db::ping(&app.db).await,
         "supabase": app.cfg.supabase().is_some(),
         "desUpstream": app.cfg.des_upstream_url,
@@ -130,11 +133,35 @@ async fn artifact_page(Path(slug): Path<String>) -> Response {
 
 fn router(state: AppState) -> Router {
     Router::new()
-        // home + shared partials
+        // Canonical service-local route taxonomy. The k8s gateway mounts these
+        // below /des, while response middleware emits browser-facing /des URLs.
+        .route("/models", get(catalog::models_page))
+        .route("/models/", get(catalog::models_page))
+        .route("/runs/{run_id}", get(catalog::run_page))
+        .route("/runs/{run_id}/", get(catalog::run_page))
+        .route("/games/soccer", get(views::soccer_page))
+        .route("/games/soccer/", get(views::soccer_page))
+        .route("/games/soccer/planner", get(planner::planner_page))
+        .route("/games/soccer/planner/", get(planner::planner_page))
+        .route("/games/soccer/planner/solve", post(planner::proxy_solve))
+        .route("/games/soccer/planner/stream", post(planner::proxy_stream))
+        .route("/games/elevator", get(views::elevator_page))
+        .route("/games/elevator/", get(views::elevator_page))
+        .route("/games/elevator/player", get(elevator_player_page))
+        .route("/games/elevator/player/", get(elevator_player_page))
+        .route("/tools/routing", get(views::routing_page))
+        .route("/tools/routing/", get(views::routing_page))
+        .route("/labs/factory-floor-track3t", get(track3t_page))
+        .route("/labs/factory-floor-track3t/", get(track3t_page))
+        .route("/api/v1/catalog", get(catalog::api_catalog))
+        .route("/api/v1/solve", post(routing::post_solve))
+        .route("/api/v1/solve/{id}", get(routing::get_solve))
+        // Home + shared partials. These service-local paths remain stable for
+        // direct development and are published below /des by the gateway.
         .route("/", get(views::home))
         .route("/partials/db-status", get(views::partial_db_status))
         .route("/partials/sims", get(views::partial_sims))
-        // soccer: data dashboard (pg-defs des_soccer_*) + copied planner page
+        // Legacy service-local aliases retained for compatibility.
         .route("/soccer", get(views::soccer_page))
         .route(
             "/partials/soccer/tournaments",
@@ -148,7 +175,6 @@ fn router(state: AppState) -> Router {
         .route("/soccer/planner", get(planner::planner_page))
         .route("/soccer/planner/solve", post(planner::proxy_solve))
         .route("/soccer/planner/stream", post(planner::proxy_stream))
-        // elevator: data dashboard (pg-defs des_fel_elevator_*) + artifact player
         .route("/elevator", get(views::elevator_page))
         .route("/elevator/player", get(elevator_player_page))
         .route("/partials/elevator/runs", get(views::partial_elevator_runs))
@@ -156,7 +182,6 @@ fn router(state: AppState) -> Router {
             "/partials/elevator/decisions",
             get(views::partial_elevator_decisions),
         )
-        // routing: copied dashboard + in-process solver API
         .route("/routing", get(views::routing_page))
         .route("/api/solve", post(routing::post_solve))
         .route("/api/solve/{id}", get(routing::get_solve))
@@ -164,15 +189,15 @@ fn router(state: AppState) -> Router {
             "/partials/routing/solves",
             get(views::partial_routing_solves),
         )
-        // vendored DES artifacts
         .route("/track3t", get(track3t_page))
         .route("/artifacts", get(views::artifacts_index))
+        .route("/artifacts/", get(views::artifacts_index))
         .route("/artifacts/{slug}", get(artifact_page))
-        // supabase auth
+        // Supabase auth.
         .route("/login", get(views::login_page))
         .route("/auth/magic-link", post(auth::magic_link))
         .route("/auth/status", get(auth::status))
-        // plumbing
+        // Plumbing.
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/assets/app.css", get(app_css))
@@ -181,6 +206,7 @@ fn router(state: AppState) -> Router {
         // Cap request bodies (the largest is a planner roster / routing spec —
         // well under this); rejects oversized posts with 413 before handling.
         .layer(DefaultBodyLimit::max(1024 * 1024))
+        .layer(middleware::from_fn(public_paths::rewrite_public_paths))
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
 }
@@ -247,7 +273,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = format!("{}:{}", cfg.host, cfg.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    info!(%addr, "des-web listening — pages: / /soccer /soccer/planner /routing /track3t /elevator /artifacts /login");
+    info!(
+        %addr,
+        public_base_path = public_paths::PUBLIC_BASE_PATH,
+        "des-web listening — canonical pages: / /models /games/soccer /games/elevator /tools/routing /labs/factory-floor-track3t /artifacts"
+    );
 
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())
