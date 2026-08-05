@@ -74,12 +74,21 @@ The application and GitOps implementation were merged on August 5, 2026.
   - final source head: `16b9ecbad319a5433f5a58dec6e386ea48605f05`
   - merge commit: `7b77b48dcb347a0c474da1831e09f27338db43c1`
   - the focused DES route contract and full kustomize render passed
+- Post-merge GitOps documentation: [k8s-cluster#996](https://github.com/ORESoftware/k8s-cluster/pull/996)
+  - merge commit: `24e40c65b19d3673c7f5512aa76f9e82e082c430`
+  - the branch was semantically reapplied on current `main` before merge
 
 The promoted image is immutable and tied to the exact application source:
 
 ```text
 ghcr.io/discrete-event-systems/des-web.rs:sha-77741ec8b5331617f71416748ef5f06846e43a5d@sha256:c3b32a5ef767bcdba515c8199fce363871ba2916e4c824609a09a37b3adc02e5
 ```
+
+The older GitOps PR merge-reference catalog job reported drift. Current
+`k8s-cluster/main` was regenerated through its locked Nix toolchain; the
+generator wrote 86 application records from 121 tracked documents and produced
+no diff (`catalog/applications.json is already current`). No generated catalog
+commit is required.
 
 Implementation work is complete in [DEN-1936](https://linear.app/denman/issue/DEN-1936/des-webrsk8s-cluster-consolidate-public-des-pages-under-des). Live deployment and evidence remain intentionally open in [DEN-2280](https://linear.app/denman/issue/DEN-2280/k8s-clusterdes-webrs-verify-the-canonical-des-rollout-in-aws-and), [des-web.rs#11](https://github.com/discrete-event-systems/des-web.rs/issues/11), and [k8s-cluster#991](https://github.com/ORESoftware/k8s-cluster/issues/991).
 
@@ -91,18 +100,21 @@ Completed delivery gates:
 - [x] Record the immutable image SHA and digest in `k8s-cluster`.
 - [x] Merge the GitOps objects and route contract after the application PR.
 - [x] Validate the focused route contract and full `dd-next-runtime` render.
+- [x] Regenerate the current Argo application catalog with the locked toolchain and verify that it is already current.
 
 Remaining operational gates:
 
-1. regenerate and merge the Argo application catalog identified as stale by post-merge CI;
-2. sync `dd-next-runtime` through both AWS and Hetzner Argo CD control planes;
-3. verify `/des/`, `/des/models`, canonical games/tools/labs pages,
+1. sync `dd-next-runtime` through both AWS and Hetzner Argo CD control planes;
+2. verify `/des/`, `/des/models`, canonical games/tools/labs pages,
    `/des/api/v1/catalog`, `/des/healthz`, and `/des/readyz` through both public
    entry points;
-4. verify planner/solve delegation to `dd-des-rs`, optional persisted fragments,
+3. verify planner/solve delegation to `dd-des-rs`, optional persisted fragments,
    and degraded operation without a database URL;
-5. observe `/des-rs/*`, `/out/*`, and `/des/music` traffic before removing any
-   compatibility route.
+4. observe `/des-rs/*`, `/out/*`, and `/des/music` traffic before removing any
+   compatibility route;
+5. repair the independent private-submodule deploy-key configuration in
+   `k8s-cluster` so repository-wide private-source checks can initialize
+   `remote/libs`.
 
 Legacy routes may be retired only after their request counters remain at zero
 for an agreed observation window and the evidence is attached to the rollout
