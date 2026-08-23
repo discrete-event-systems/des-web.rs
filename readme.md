@@ -148,3 +148,41 @@ schema/              declarative desired state + seed
 scripts/             dpm and local database helpers
 e2e/                 Playwright browser contract tests
 ```
+
+## Cross-surface delivery
+
+User-visible, model, scenario, run, artifact, solver, authorization,
+notification, navigation, or deep-link changes in this Rust web application
+must be evaluated for:
+
+- `discrete-event-systems/des-flutter` on Android, iOS, Flutter Web/mobile web,
+  and Flutter desktop;
+- `discrete-event-systems/des-desktop.rs`, the planned native Rust modeling
+  workbench; and
+- DES interfaces, generated clients, model/event schemas, deterministic seeds,
+  route catalogs, result bundles, and conformance fixtures.
+
+This is judgment-based coordination rather than automatic page duplication.
+Public catalog presentation, SEO, and vendored browser artifacts may remain
+web-only. Local datasets, large batch runs, native files, offline replay, and
+workbench rendering may be native-specific. Model/run semantics, deterministic
+replay, solver behavior, result interpretation, permissions, errors, and
+navigation normally require coordinated work or an explicit no-change rationale
+and parity follow-up.
+
+Deep links are HTTPS-first and preserve the canonical `/des` taxonomy:
+
+```text
+https://<verified-des-owned-host>/open/<route>?<bounded-query>
+```
+
+A custom-scheme fallback must be assigned through a reviewed ADR before it is
+registered; do not invent one. Web, Flutter, and Rust desktop must share
+versioned route types and golden fixtures and support cold start,
+already-running delivery, authentication resume, replay/expiry rejection, and
+browser fallback. Private datasets, result payloads, credentials, tokens,
+absolute local paths, and sensitive experiment inputs are prohibited in URLs;
+use bounded identifiers or short-lived, single-use, audience-bound codes.
+
+See [`docs/CROSS_SURFACE_DELIVERY.md`](docs/CROSS_SURFACE_DELIVERY.md) and the
+[portfolio policy](https://github.com/ORESoftware/project-registry/blob/main/docs/cross-surface-delivery.md).
