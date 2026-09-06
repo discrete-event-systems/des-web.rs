@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
+        image: pgvector/pgvector:pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -107,7 +107,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
+        image: pgvector/pgvector:pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
@@ -142,7 +142,10 @@ jobs:
           ./target/release/des-web &
           echo $! > /tmp/des-web.pid
           for _ in $(seq 1 30); do
-            curl -sf "http://127.0.0.1:8130/healthz" && break || sleep 1
+            if curl -sf "http://127.0.0.1:8130/healthz"; then
+              break
+            fi
+            sleep 1
           done
           curl -sf "http://127.0.0.1:8130/healthz"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
