@@ -80,18 +80,20 @@ jobs:
           test "$(q 'select count(*) >= 8 from des_soccer_tournament_matches')" = t
           test "$(q 'select count(*) >= 3 from des_fel_elevator_learning_runs')" = t
           test "$(q 'select count(*) >= 1 from des_web_routing_solves')" = t
-      - name: install dpm 0.3.2
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - name: install dpm from the immutable extension-aware revision
+        env:
+          DPM_REVISION: 050c3deeaa8a02428bb45cf648f3efd39f6c522e
         run: |
-          curl -fsSL -o /tmp/dpm.tar.gz \
-            https://github.com/declarative-migrations/declarative-postgres-migrate.rs/releases/download/v0.3.2/dpm-v0.3.2-x86_64-unknown-linux-gnu.tar.gz
-          # Extract into a fresh dir with tolerant flags: the archive's root-dir
-          # entry has perms/mtime tar can't restore, which trips `bash -e`.
-          # --no-same-permissions -m --no-same-owner skips restoring that
-          # metadata; a fresh -C dir avoids clobbering anything in /tmp.
-          mkdir -p /tmp/dpmx
-          tar -xzf /tmp/dpm.tar.gz -C /tmp/dpmx --no-same-owner --no-same-permissions -m
-          sudo install /tmp/dpmx/dpm /usr/local/bin/dpm
-          dpm version
+          set -euo pipefail
+          dpm_root="${RUNNER_TEMP}/dpm"
+          cargo install --locked \
+            --git https://github.com/declarative-migrations/declarative-postgres-migrate.rs.git \
+            --rev "$DPM_REVISION" \
+            --bin dpm \
+            --root "$dpm_root"
+          echo "${dpm_root}/bin" >> "$GITHUB_PATH"
+          "${dpm_root}/bin/dpm" version
       - name: dpm verify — prove zero drift against the desired state (enforcing)
         env:
           PGPASSWORD: postgres
