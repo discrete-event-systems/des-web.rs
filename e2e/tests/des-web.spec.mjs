@@ -96,3 +96,30 @@ test("unknown path returns the 404 page", async ({ page }) => {
   expect(resp.status()).toBe(404);
   await expect(page.getByText("404")).toBeVisible();
 });
+
+test("keyboard can tab into a focusable control on home", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#catalog .card").first()).toBeVisible();
+  await page.keyboard.press("Tab");
+  const tag = await page.evaluate(() => document.activeElement?.tagName);
+  expect(["A", "BUTTON", "INPUT", "SELECT"]).toContain(tag);
+});
+
+test("home markup is HTMX/Maud, not React", async ({ page }) => {
+  await page.goto("/");
+  const html = await page.content();
+  expect(html.toLowerCase()).not.toContain("react");
+  expect(html).not.toContain("JSX");
+  expect(html).toContain("hx-get");
+});
+
+test("login page has no console errors", async ({ page }) => {
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && !/favicon/i.test(message.text())) {
+      errors.push(message.text());
+    }
+  });
+  await page.goto("/login");
+  expect(errors).toEqual([]);
+});
