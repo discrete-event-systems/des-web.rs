@@ -6,9 +6,19 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "install-browsers": "playwright install --with-deps chromium"
+    "install-browsers": "playwright install --with-deps chromium",
+    "lint:ores": "if [ -f ../.ores-lint/lint.sh ]; then sh ../.ores-lint/lint.sh; else echo 'ores-lint not installed'; fi",
+    "prepublishOnly": "npm run lint:ores"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1"
+  },
+  "oresLint": {
+    "note": "Declared, not installed. ores-lint resolves these from a global install - see .ores-lint/README.md",
+    "requires": {
+      "eslint": ">=9",
+      "typescript-eslint": ">=8 (optional; without it .ts files are skipped)"
+    },
+    "install": "npm i -g eslint typescript-eslint"
   }
 }
